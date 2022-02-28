@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from carstate import State, AngleDiff
 from params import WorldParams, CarParams
 from planarutils import SegmentCrossArc, SegmentCrossSegment
-from visualization import visualization, DrawParams
+from visualization import Visualization, DrawParams
 
 
 ######################################################################
@@ -58,7 +58,7 @@ class Arc:
                          car)
 
     # Draw the arc (showing the intermediate states).
-    def Draw(self, car: CarParams, fig: visualization, color, **kwargs):
+    def Draw(self, car: CarParams, fig: Visualization, color, **kwargs):
         n = max(2, int(np.ceil(abs(self.distance) / DrawParams.ddraw)))
         d = self.distance / n
         for i in range(1,n):
@@ -128,11 +128,11 @@ class LocalPlan(ABC):
 
     # Draw the local plan.
     @abstractclassmethod
-    def Draw(self, fig: visualization, color, **kwargs):
+    def Draw(self, fig: Visualization, color, **kwargs):
         pass
 
     @abstractclassmethod
-    def DrawSimple(self, fig: visualization, color, **kwargs):
+    def DrawSimple(self, fig: Visualization, color, **kwargs):
         pass
 
     # Check whether all intermediate points and arcs are valid
@@ -141,217 +141,28 @@ class LocalPlan(ABC):
         pass
 
     @abstractclassmethod
+    def IntermediateState(self, d: float) -> State:
+        pass
+
+    @abstractclassmethod
     def CriticalStates(self) -> list[State]:
         pass
 
 
-#
-# Local Plan 3-Arc
-#
-class LocalPlan3Arc(LocalPlan):
+class LocalPlan2Arc:
     def __init__(self, fromState: State, toState: State, car: CarParams):
         self.car = car
 
         # Compute the connection.
-        (pointState, stopState, arc1, arc2, arc3), l = self.ComputeConnection(fromState, toState)
-        self.length    = l
-
-        # Save the information.
-        self.fromState = fromState
-        self.pointState = pointState
-        self.stopState = stopState
-        self.toState   = toState
-        self.arc1      = arc1
-        self.arc2      = arc2
-        self.arc3      = arc3
-
-    def ComputeConnection(self, fromState: State, toState: State) -> \
-                            tuple[tuple[State, State, Arc, Arc, Arc], bool]:
-        # Grab the starting and final coordinates.
-        (x1, x2) = (fromState.x, toState.x)
-        (y1, y2) = (fromState.y, toState.y)
-        (t1, t2) = (fromState.t, toState.t)
-        (s1, s2) = (fromState.s, toState.s)
-        (c1, c2) = (fromState.c, toState.c)
-
-        # rad_base = wheelbase / tansteermax  # Assuming the car is able to turn
-        rad_base = self.car.rmin
-
-        # Initialize values to minimize
-        min_length = np.inf
-        params = (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf)
-
-        # Minimize over all 4 configurations (+/- r and forwards vs. backwards)
-        for r in [rad_base, -rad_base]:
-            # Center of circle 1
-            cx1 = x1 - r * s1
-            cy1 = y1 + r * c1
-
-            # Center of circle 2
-            cx2 = x2 - r * s2
-            cy2 = y2 + r * c2
-
-            dy = cy2 - cy1
-            dx = cx2 - cx1
-            
-            ds = np.sqrt(dy**2 + dx**2)
-
-            for phase in [0, np.pi]:
-                tp = np.arctan2(dy, dx)
-                tp = AngleDiff(tp + phase, 0)       # Adjust by phase
-
-                dp = r * AngleDiff(tp, t1)          # Distance to point state
-                dt = r * AngleDiff(t2, tp)
-                l = abs(dp) + ds + abs(dt)
-                if l < min_length:
-                    min_length = l
-                    params = (l, r, cx1, cy1, tp, dp, ds * np.cos(phase), dt)
-
-        l, r, cx1, cy1, tp, dp, ds, dt = params
-
-        # Arc 1 (fromState -> point)
-        xp = cx1 + r * np.cos(tp - np.pi / 2)
-        yp = cy1 + r * np.sin(tp - np.pi / 2)
-        pointState = State(xp, yp, tp, self.car)
-        arc1 = Arc(fromState, pointState, dp, r)
-
-        # Arc 2 (point -> stop)
-        (cp, sp) = (pointState.c, pointState.s)
-        stopState = State(xp + ds * cp, yp + ds * sp, tp, self.car)
-        arc2 = Arc(pointState, stopState, ds, None)
-
-        # Arc 3 (stop -> toState)
-        arc3 = Arc(stopState, toState, dt, r)
-
-        return (pointState, stopState, arc1, arc2, arc3), l
-
-
-    ############################################################
-    # Utilities:
-    # In case we want to print the state.
-    def __repr__(self) -> str:
-        return ("<Arc1 %s\n Arc2 %s\n Arc3 %s\n Arc4 %s\n => Length %5.2f>" %
-                (self.arc1, self.arc2, self.arc3, self.Length()))
-
-    # Return the absolute length.
-    def Length(self) -> float:
-        return self.length
-
-    def __len__(self) -> float:
-        return self.length
-
-    # Draw the local plan (showing the mid state and two arcs).
-    def Draw(self, fig: visualization, color, **kwargs):
-        self.pointState.Draw(fig, color, **kwargs)
-        self.stopState.Draw(fig, color, **kwargs)
-        self.arc1.Draw(self.car, fig, color, **kwargs)
-        self.arc2.Draw(self.car, fig, color, **kwargs)
-        self.arc3.Draw(self.car, fig, color, **kwargs)
-
-    def DrawSimple(self, fig: visualization, color, **kwargs):
-        plt.plot((self.fromState.x, self.toState.x), 
-                 (self.fromState.y, self.toState.y), color, **kwargs)
-
-    ############################################################
-    # PRM Functions:
-    # Check whether the midpoint is in free space and
-    # both arcs are valid (turning radius and collisions).
-    def Valid(self, world: WorldParams) -> bool:
-        car = self.car
-        return (self.pointState.InFreeSpace(world) and 
-                self.stopState.InFreeSpace(world) and
-                self.arc1.Valid(world, car.rmin) and 
-                self.arc2.Valid(world, car.rmin) and 
-                self.arc3.Valid(world, car.rmin))
-
-    def CriticalStates(self):
-        return [self.pointState, self.stopState]
-
-
-#
-# Local Plan 3-Arc
-#
-MAX_DIST = 10
-DISTANCE_FROM_GOAL = 9      # Must be > than ~8 to capture all cases
-
-class LocalPlan4Arc(LocalPlan):
-    def __init__(self, fromState: State, toState: State, car: CarParams):
-        self.car = car
-
-        # Compute the connection.
-        (pointState, stopState, midState, arc1, arc2, arc3, arc4), r = self.ComputeConnection(fromState, toState)
+        (midState, arc1, arc2), r = self.Compute2ArcConnection(fromState, toState)
         self.valid_connection = r
 
         # Save the information.
         self.fromState = fromState
-        self.pointState = pointState
-        self.stopState = stopState
         self.midState  = midState
         self.toState   = toState
         self.arc1      = arc1
         self.arc2      = arc2
-        self.arc3      = arc3
-        self.arc4      = arc4
-
-    def ComputeConnection(self, fromState: State, toState: State) -> \
-            tuple[tuple[State | None, State | None, State, Arc | None, Arc | None, Arc, Arc], bool]:
-        r = False       # Default to running 2 Arc if close enough
-
-        # Too far away, turn towards the target and drive straight for a bit.
-        if fromState.EuclideanDistance(toState) > MAX_DIST:
-            # Grab the starting and final coordinates.
-            (x1, x2) = (fromState.x, toState.x)
-            (y1, y2) = (fromState.y, toState.y)
-
-            # Determine which side to turn towards for straight-drive step.
-            tp = np.arctan2(y2-y1, x2-x1)
-            if tp < 0:
-                tansteer = self.car.tansteermax
-            else:
-                tansteer = -self.car.tansteermax
-
-            # If turning by tansteer is invalid, try turning by -tansteer
-            pointState, stopState, arc1, arc2 = self.ComputeStraightDriveConnection(
-                fromState, toState, tp, tansteer, DISTANCE_FROM_GOAL)
-            if not arc1.Valid() or not arc2.Valid():
-                pointState, stopState, arc1, arc2 = self.ComputeStraightDriveConnection(
-                    fromState, toState, tp, -tansteer, DISTANCE_FROM_GOAL)
-
-            # 2 Arc (stop -> toState)
-            (midState, arc3, arc4), r = self.Compute2ArcConnection(stopState, toState)
-
-        # Already close enough, just perform a 2 Arc
-        else:
-            # 2 Arc (fromState -> toState)
-            (midState, arc3, arc4), r = self.Compute2ArcConnection(fromState, toState)
-            pointState = None
-            stopState = None
-            arc1 = None
-            arc2 = None
-
-        return (pointState, stopState, midState, arc1, arc2, arc3, arc4), r
-
-    def ComputeStraightDriveConnection(self, fromState: State, toState: State, 
-                                        tp: float, r: float, goal_dist: float) \
-                                        -> tuple[State, State, Arc, Arc]:
-        # Center of circle 1
-        cx1 = fromState.x - r * fromState.s
-        cy1 = fromState.y + r * fromState.c
-
-        # Arc 1 (fromState -> point)
-        dp = r * AngleDiff(tp, fromState.t)     # Distance to point state
-        xp = cx1 + r * np.cos(tp - np.pi / 2)
-        yp = cy1 + r * np.sin(tp - np.pi / 2)
-        pointState = State(xp, yp, tp, self.car)
-        arc1 = Arc(fromState, pointState, dp, r)
-
-        # Arc 2 (point -> stop)
-        ds = max(0, pointState.Distance(toState) - goal_dist)
-        (cp, sp) = (pointState.c, pointState.s)
-        stopState = State(xp + ds * cp, yp + ds * sp, tp, self.car)
-        arc2 = Arc(pointState, stopState, ds, None)
-
-        return pointState, stopState, arc1, arc2
 
     def Compute2ArcConnection(self, fromState: State, toState: State) -> \
             tuple[tuple[State | None, Arc | None, Arc | None], bool]:
@@ -458,6 +269,277 @@ class LocalPlan4Arc(LocalPlan):
     # Utilities:
     # In case we want to print the state.
     def __repr__(self):
+        return ("<Arc1 %s\n Arc2 %s\n => Length %5.2f>" %
+                (self.arc1, self.arc2, self.Length()))
+
+    # Return the absolute length.
+    def Length(self) -> float:
+        return self.arc1.Length() + self.arc2.Length()
+
+    # Draw the local plan (showing the mid state and two arcs).
+    def Draw(self, fig: Visualization, color, **kwargs):
+        self.midState.Draw(fig, color, **kwargs)
+        self.arc1.Draw(self.car, fig, color, **kwargs)
+        self.arc2.Draw(self.car, fig, color, **kwargs)
+
+    def DrawSimple(self, fig: Visualization, color, **kwargs):
+        plt.plot((self.fromState.x, self.toState.x), 
+                 (self.fromState.y, self.toState.y), color, **kwargs)
+
+    ############################################################
+    # PRM Functions:
+    # Check whether the midpoint is in free space and
+    # both arcs are valid (turning radius and collisions).
+    def Valid(self, world: WorldParams) -> bool:
+        return (self.valid_connection and
+                self.midState.InFreeSpace(world) and
+                self.arc1.Valid(world, self.car.rmin) and
+                self.arc2.Valid(world, self.car.rmin))
+
+    def IntermediateState(self, d: float) -> State:
+        d1 = 0 if not self.arc1 else self.arc1.Length()
+        d2 = 0 if not self.arc2 else self.arc2.Length()
+
+        if d < d1:
+            return self.arc1.IntermediateState(d * np.sign(self.arc1.distance), self.car)
+        if d < d1 + d2:
+            d -= d1
+            return self.arc2.IntermediateState(d * np.sign(self.arc2.distance), self.car)
+        return self.stopState
+
+    def CriticalStates(self) -> list[State]:
+        if self.midState:
+            return [self.midState]
+        return []
+
+
+#
+# Local Plan 3-Arc
+#
+class LocalPlan3Arc(LocalPlan):
+    def __init__(self, fromState: State, toState: State, car: CarParams):
+        self.car = car
+
+        # Compute the connection.
+        (pointState, stopState, arc1, arc2, arc3), l = self.ComputeConnection(fromState, toState)
+        self.length    = l
+
+        # Save the information.
+        self.fromState = fromState
+        self.pointState = pointState
+        self.stopState = stopState
+        self.toState   = toState
+        self.arc1      = arc1
+        self.arc2      = arc2
+        self.arc3      = arc3
+
+    def ComputeConnection(self, fromState: State, toState: State) -> \
+                            tuple[tuple[State, State, Arc, Arc, Arc], bool]:
+        # Grab the starting and final coordinates.
+        (x1, x2) = (fromState.x, toState.x)
+        (y1, y2) = (fromState.y, toState.y)
+        (t1, t2) = (fromState.t, toState.t)
+        (s1, s2) = (fromState.s, toState.s)
+        (c1, c2) = (fromState.c, toState.c)
+
+        # rad_base = wheelbase / tansteermax  # Assuming the car is able to turn
+        rad_base = self.car.rmin
+
+        # Initialize values to minimize
+        min_length = np.inf
+        params = (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf)
+
+        # Minimize over all 4 configurations (+/- r and forwards vs. backwards)
+        for r in [rad_base, -rad_base]:
+            # Center of circle 1
+            cx1 = x1 - r * s1
+            cy1 = y1 + r * c1
+
+            # Center of circle 2
+            cx2 = x2 - r * s2
+            cy2 = y2 + r * c2
+
+            dy = cy2 - cy1
+            dx = cx2 - cx1
+            
+            ds = np.sqrt(dy**2 + dx**2)
+
+            for phase in [0, np.pi]:
+                tp = np.arctan2(dy, dx)
+                tp = AngleDiff(tp + phase, 0)       # Adjust by phase
+
+                dp = r * AngleDiff(tp, t1)          # Distance to point state
+                dt = r * AngleDiff(t2, tp)
+                l = abs(dp) + ds + abs(dt)
+                if l < min_length:
+                    min_length = l
+                    params = (l, r, cx1, cy1, tp, dp, ds * np.cos(phase), dt)
+
+        l, r, cx1, cy1, tp, dp, ds, dt = params
+
+        # Arc 1 (fromState -> point)
+        xp = cx1 + r * np.cos(tp - np.pi / 2)
+        yp = cy1 + r * np.sin(tp - np.pi / 2)
+        pointState = State(xp, yp, tp, self.car)
+        arc1 = Arc(fromState, pointState, dp, r)
+
+        # Arc 2 (point -> stop)
+        (cp, sp) = (pointState.c, pointState.s)
+        stopState = State(xp + ds * cp, yp + ds * sp, tp, self.car)
+        arc2 = Arc(pointState, stopState, ds, None)
+
+        # Arc 3 (stop -> toState)
+        arc3 = Arc(stopState, toState, dt, r)
+
+        return (pointState, stopState, arc1, arc2, arc3), l
+
+
+    ############################################################
+    # Utilities:
+    # In case we want to print the state.
+    def __repr__(self) -> str:
+        return ("<Arc1 %s\n Arc2 %s\n Arc3 %s\n Arc4 %s\n => Length %5.2f>" %
+                (self.arc1, self.arc2, self.arc3, self.Length()))
+
+    # Return the absolute length.
+    def Length(self) -> float:
+        return self.length
+
+    def __len__(self) -> float:
+        return self.length
+
+    # Draw the local plan (showing the mid state and two arcs).
+    def Draw(self, fig: Visualization, color, **kwargs):
+        self.pointState.Draw(fig, color, **kwargs)
+        self.stopState.Draw(fig, color, **kwargs)
+        self.arc1.Draw(self.car, fig, color, **kwargs)
+        self.arc2.Draw(self.car, fig, color, **kwargs)
+        self.arc3.Draw(self.car, fig, color, **kwargs)
+
+    def DrawSimple(self, fig: Visualization, color, **kwargs):
+        plt.plot((self.fromState.x, self.toState.x), 
+                 (self.fromState.y, self.toState.y), color, **kwargs)
+
+    ############################################################
+    # PRM Functions:
+    # Check whether the midpoint is in free space and
+    # both arcs are valid (turning radius and collisions).
+    def Valid(self, world: WorldParams) -> bool:
+        car = self.car
+        return (self.pointState.InFreeSpace(world) and 
+                self.stopState.InFreeSpace(world) and
+                self.arc1.Valid(world, car.rmin) and 
+                self.arc2.Valid(world, car.rmin) and 
+                self.arc3.Valid(world, car.rmin))
+
+    def IntermediateState(self, d: float) -> State:
+        d1 = self.arc1.Length()
+        d2 = self.arc2.Length()
+        d3 = self.arc3.Length()
+
+        if d < d1:
+            return self.arc1.IntermediateState(d * np.sign(self.arc1.distance), self.car)
+        if d < d1 + d2:
+            d -= d1
+            return self.arc2.IntermediateState(d * np.sign(self.arc2.distance), self.car)
+        if d < d1 + d2 + d3:
+            d -= d1 + d2
+            return self.arc3.IntermediateState(d * np.sign(self.arc3.distance), self.car)
+        return self.stopState
+
+    def CriticalStates(self) -> list[State]:
+        return [self.pointState, self.stopState]
+
+
+#
+# Local Plan 3-Arc
+#
+MAX_DIST = 10
+DISTANCE_FROM_GOAL = 9      # Must be > than ~8 to capture all cases
+
+class LocalPlan4Arc(LocalPlan2Arc):
+    def __init__(self, fromState: State, toState: State, car: CarParams):
+        self.car = car
+
+        # Compute the connection.
+        (pointState, stopState, midState, arc1, arc2, arc3, arc4), r = self.ComputeConnection(fromState, toState)
+        self.valid_connection = r
+
+        # Save the information.
+        self.fromState = fromState
+        self.pointState = pointState
+        self.stopState = stopState
+        self.midState  = midState
+        self.toState   = toState
+        self.arc1      = arc1
+        self.arc2      = arc2
+        self.arc3      = arc3
+        self.arc4      = arc4
+
+    def ComputeConnection(self, fromState: State, toState: State) -> \
+            tuple[tuple[State | None, State | None, State, Arc | None, Arc | None, Arc, Arc], bool]:
+        r = False       # Default to running 2 Arc if close enough
+
+        # Too far away, turn towards the target and drive straight for a bit.
+        if fromState.EuclideanDistance(toState) > MAX_DIST:
+            # Grab the starting and final coordinates.
+            (x1, x2) = (fromState.x, toState.x)
+            (y1, y2) = (fromState.y, toState.y)
+
+            # Determine which side to turn towards for straight-drive step.
+            tp = np.arctan2(y2-y1, x2-x1)
+            if tp < 0:
+                tansteer = self.car.tansteermax
+            else:
+                tansteer = -self.car.tansteermax
+
+            # If turning by tansteer is invalid, try turning by -tansteer
+            pointState, stopState, arc1, arc2 = self.ComputeStraightDriveConnection(
+                fromState, toState, tp, tansteer, DISTANCE_FROM_GOAL)
+            if not arc1.Valid() or not arc2.Valid():
+                pointState, stopState, arc1, arc2 = self.ComputeStraightDriveConnection(
+                    fromState, toState, tp, -tansteer, DISTANCE_FROM_GOAL)
+
+            # 2 Arc (stop -> toState)
+            (midState, arc3, arc4), r = self.Compute2ArcConnection(stopState, toState)
+
+        # Already close enough, just perform a 2 Arc
+        else:
+            # 2 Arc (fromState -> toState)
+            (midState, arc3, arc4), r = self.Compute2ArcConnection(fromState, toState)
+            pointState = None
+            stopState = None
+            arc1 = None
+            arc2 = None
+
+        return (pointState, stopState, midState, arc1, arc2, arc3, arc4), r
+
+    def ComputeStraightDriveConnection(self, fromState: State, toState: State, 
+                                        tp: float, r: float, goal_dist: float) \
+                                        -> tuple[State, State, Arc, Arc]:
+        # Center of circle 1
+        cx1 = fromState.x - r * fromState.s
+        cy1 = fromState.y + r * fromState.c
+
+        # Arc 1 (fromState -> point)
+        dp = r * AngleDiff(tp, fromState.t)     # Distance to point state
+        xp = cx1 + r * np.cos(tp - np.pi / 2)
+        yp = cy1 + r * np.sin(tp - np.pi / 2)
+        pointState = State(xp, yp, tp, self.car)
+        arc1 = Arc(fromState, pointState, dp, r)
+
+        # Arc 2 (point -> stop)
+        ds = max(0, pointState.Distance(toState) - goal_dist)
+        (cp, sp) = (pointState.c, pointState.s)
+        stopState = State(xp + ds * cp, yp + ds * sp, tp, self.car)
+        arc2 = Arc(pointState, stopState, ds, None)
+
+        return pointState, stopState, arc1, arc2
+
+    ############################################################
+    # Utilities:
+    # In case we want to print the state.
+    def __repr__(self):
         return ("<Arc1 %s\n Arc2 %s\n Arc3 %s\n Arc4 %s\n => Length %5.2f>" %
                 (self.arc1, self.arc2, self.arc3, self.arc4, self.Length()))
 
@@ -471,7 +553,7 @@ class LocalPlan4Arc(LocalPlan):
                 self.arc4.Length())
 
     # Draw the local plan (showing the mid state and two arcs).
-    def Draw(self, fig: visualization, color, **kwargs):
+    def Draw(self, fig: Visualization, color, **kwargs):
         if self.valid_connection:
             if self.pointState:
                 self.pointState.Draw(fig, color, **kwargs)
@@ -494,7 +576,7 @@ class LocalPlan4Arc(LocalPlan):
             if self.arc2:
                 self.arc2.Draw(self.car, fig, color, **kwargs)
 
-    def DrawSimple(self, fig: visualization, color, **kwargs):
+    def DrawSimple(self, fig: Visualization, color, **kwargs):
         plt.plot((self.fromState.x, self.toState.x), 
                  (self.fromState.y, self.toState.y), color, **kwargs)
 
@@ -513,7 +595,26 @@ class LocalPlan4Arc(LocalPlan):
                 self.arc3.Valid(world, rmin) and
                 self.arc4.Valid(world, rmin))
 
-    def CriticalStates(self):
+    def IntermediateState(self, d: float) -> State:
+        d1 = 0 if not self.arc1 else self.arc1.Length()
+        d2 = 0 if not self.arc2 else self.arc2.Length()
+        d3 = self.arc3.Length()
+        d4 = self.arc4.Length()
+
+        if d < d1:
+            return self.arc1.IntermediateState(d * np.sign(self.arc1.distance), self.car)
+        if d < d1 + d2:
+            d -= d1
+            return self.arc2.IntermediateState(d * np.sign(self.arc2.distance), self.car)
+        if d < d1 + d2 + d3:
+            d -= d1 + d2
+            return self.arc3.IntermediateState(d * np.sign(self.arc3.distance), self.car)
+        if d < d1 + d2 + d3 + d4:
+            d -= d1 + d2 + d3
+            return self.arc4.IntermediateState(d * np.sign(self.arc4.distance), self.car)
+        return self.stopState
+
+    def CriticalStates(self) -> list[State]:
         out = []
         if self.pointState:
             out.append(self.pointState)

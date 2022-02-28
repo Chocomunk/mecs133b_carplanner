@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 
-from visualization import visualization
+from visualization import Visualization
 from planarutils import SegmentCrossBox
 from params import WorldParams, CarParams
 
@@ -48,7 +48,7 @@ class State:
                 (self.x, self.y, self.t * (180.0/np.pi)))
 
     # Draw the state.
-    def Draw(self, fig: visualization, color, **kwargs):
+    def Draw(self, fig: Visualization, color, **kwargs):
         b = self.box
         # Box
         plt.plot((b[0][0], b[1][0]), (b[0][1], b[1][1]), color, **kwargs)
@@ -59,7 +59,7 @@ class State:
         plt.plot(0.9*b[3][0]+0.1*b[0][0], 0.9*b[3][1]+0.1*b[0][1], color+'o')
         plt.plot(0.1*b[3][0]+0.9*b[0][0], 0.1*b[3][1]+0.9*b[0][1], color+'o')
 
-    def DrawSimple(self, fig: visualization, color, **kwargs):
+    def DrawSimple(self, fig: Visualization, color, **kwargs):
         plt.plot(self.x, self.y, color+'o')
         plt.plot((self.x, self.x + self.c), 
                  (self.y, self.y + self.s), color, **kwargs)

@@ -10,10 +10,10 @@ import time
 
 from carstate import State
 from planners import Node, Planner, PRMPlanner
-from visualization import visualization
+from visualization import Visualization
 from pathprocessing import PathProcessor
 from params import WorldParams, CarParams
-from localplanners import LocalPlan, LocalPlan3Arc, LocalPlan4Arc
+from localplanners import LocalPlan, LocalPlan2Arc, LocalPlan3Arc, LocalPlan4Arc
 
 
 # Pick your start and goal locations.
@@ -41,7 +41,7 @@ CHECK_PATH_STEPS = False
 #
 #  Main Code
 #
-def CheckLocalPlan(fig: visualization, LocalPlanner: type[LocalPlan], 
+def CheckLocalPlan(fig: Visualization, LocalPlanner: type[LocalPlan], 
                     fromState: State, toState: State, c: CarParams):
     # Clear the figure.
     fig.ClearFigure()
@@ -59,7 +59,7 @@ def CheckLocalPlan(fig: visualization, LocalPlanner: type[LocalPlan],
     print("Local plan from %s to %s" % (fromState, toState))
     input("(hit return to continue)")
 
-def TestLocalPlanner(fig: visualization, LocalPlanner: type[LocalPlan], c: CarParams):
+def TestLocalPlanner(fig: Visualization, LocalPlanner: type[LocalPlan], c: CarParams):
     CheckLocalPlan(fig, LocalPlanner, State(0, 0, 0, c),       State(8,  0, 0, c))
     CheckLocalPlan(fig, LocalPlanner, State(8, 0, 0, c),       State(0,  0, 0, c))
     CheckLocalPlan(fig, LocalPlanner, State(0, 0, 0, c),       State(8,  8, np.pi/2, c))
@@ -84,10 +84,10 @@ def main() -> bool:
 
     # Create the figure.
     if SHOW_VISUAL:
-        fig = visualization()
+        fig = Visualization()
     c = CarParams()
     wp = WorldParams()
-    LocalPlanner: LocalPlan = LocalPlan3Arc
+    LocalPlanner: type[LocalPlan] = LocalPlan2Arc
     planner: Planner = PRMPlanner(LocalPlanner, wp, c, N, K)
     path_processor = PathProcessor(LocalPlanner, wp, c)
 

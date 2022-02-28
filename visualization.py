@@ -13,7 +13,7 @@ class DrawParams():
 #
 #   Visualization
 #
-class visualization:
+class Visualization:
     def __init__(self):
         # Clear and show.
         self.ClearFigure()

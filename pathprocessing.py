@@ -1,7 +1,7 @@
 from planners import Node
 from carstate import State
 from localplanners import LocalPlan
-from visualization import visualization
+from visualization import Visualization
 from params import WorldParams, CarParams
 
 #
@@ -64,7 +64,7 @@ class PathProcessor:
         # Rebuild and return the path (list of nodes).
         return [Node(state) for state in states]
 
-    def DrawPath(self, path: list[Node], fig: visualization, color, check_steps=False, **kwargs):
+    def DrawPath(self, path: list[Node], fig: Visualization, color, check_steps=False, **kwargs):
         # Draw the individual local plans
         for i in range(len(path)-1):
             plan = self.LocalPlanner(path[i].state, path[i+1].state, self.car)
