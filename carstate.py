@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Tuple
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -65,7 +66,7 @@ class State:
                  (self.y, self.y + self.s), color, **kwargs)
 
     # Return a tuple of the coordinates for KDTree.
-    def Coordinates(self) -> tuple[float, float, float, float]:
+    def Coordinates(self) -> Tuple[float, float, float, float]:
         return (self.x, self.y, self.wheelbase*self.s, self.wheelbase*self.c)
 
 

@@ -1,5 +1,5 @@
 from abc import ABC, abstractclassmethod
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -166,7 +166,7 @@ class LocalPlan2Arc:
         self.arc2      = arc2
 
     def Compute2ArcConnection(self, fromState: State, toState: State) -> \
-            tuple[tuple[State | None, Arc | None, Arc | None], bool]:
+            Tuple[Tuple[State | None, Arc | None, Arc | None], bool]:
         # Grab the starting and final coordinates.
         (x1, x2) = (fromState.x, toState.x)
         (y1, y2) = (fromState.y, toState.y)
@@ -335,7 +335,7 @@ class LocalPlan3Arc(LocalPlan):
         self.arc3      = arc3
 
     def ComputeConnection(self, fromState: State, toState: State) -> \
-                            tuple[tuple[State, State, Arc, Arc, Arc], bool]:
+                            Tuple[Tuple[State, State, Arc, Arc, Arc], bool]:
         # Grab the starting and final coordinates.
         (x1, x2) = (fromState.x, toState.x)
         (y1, y2) = (fromState.y, toState.y)
@@ -478,7 +478,7 @@ class LocalPlan4Arc(LocalPlan2Arc):
         self.arc4      = arc4
 
     def ComputeConnection(self, fromState: State, toState: State) -> \
-            tuple[tuple[State | None, State | None, State, Arc | None, Arc | None, Arc, Arc], bool]:
+            Tuple[Tuple[State | None, State | None, State, Arc | None, Arc | None, Arc, Arc], bool]:
         r = False       # Default to running 2 Arc if close enough
 
         # Too far away, turn towards the target and drive straight for a bit.
@@ -517,7 +517,7 @@ class LocalPlan4Arc(LocalPlan2Arc):
 
     def ComputeStraightDriveConnection(self, fromState: State, toState: State, 
                                         tp: float, r: float, goal_dist: float) \
-                                        -> tuple[State, State, Arc, Arc]:
+                                        -> Tuple[State, State, Arc, Arc]:
         # Center of circle 1
         cx1 = fromState.x - r * fromState.s
         cy1 = fromState.y + r * fromState.c
