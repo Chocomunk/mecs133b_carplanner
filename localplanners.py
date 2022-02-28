@@ -1,4 +1,5 @@
 from abc import ABC, abstractclassmethod
+from typing import List
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -145,7 +146,7 @@ class LocalPlan(ABC):
         pass
 
     @abstractclassmethod
-    def CriticalStates(self) -> list[State]:
+    def CriticalStates(self) -> List[State]:
         pass
 
 
@@ -307,7 +308,7 @@ class LocalPlan2Arc:
             return self.arc2.IntermediateState(d * np.sign(self.arc2.distance), self.car)
         return self.stopState
 
-    def CriticalStates(self) -> list[State]:
+    def CriticalStates(self) -> List[State]:
         if self.midState:
             return [self.midState]
         return []
@@ -447,7 +448,7 @@ class LocalPlan3Arc(LocalPlan):
             return self.arc3.IntermediateState(d * np.sign(self.arc3.distance), self.car)
         return self.stopState
 
-    def CriticalStates(self) -> list[State]:
+    def CriticalStates(self) -> List[State]:
         return [self.pointState, self.stopState]
 
 
@@ -614,7 +615,7 @@ class LocalPlan4Arc(LocalPlan2Arc):
             return self.arc4.IntermediateState(d * np.sign(self.arc4.distance), self.car)
         return self.stopState
 
-    def CriticalStates(self) -> list[State]:
+    def CriticalStates(self) -> List[State]:
         out = []
         if self.pointState:
             out.append(self.pointState)

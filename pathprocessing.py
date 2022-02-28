@@ -1,3 +1,4 @@
+from typing import List
 from planners import Node
 from carstate import State
 from localplanners import LocalPlan
@@ -14,7 +15,7 @@ class PathProcessor:
         self.world = world
         self.car = car
 
-    def UniqueStates(self, path: list[Node]) -> list[State]:
+    def UniqueStates(self, path: List[Node]) -> List[State]:
         # Initialize the state list.
         states = [path[0].state]
 
@@ -28,7 +29,7 @@ class PathProcessor:
         # Return the full list.
         return states
 
-    def TrimStates(self, states: list[State]) -> list[State]:
+    def TrimStates(self, states: List[State]) -> List[State]:
         # Remove unnecessary intermediate states
         final_states = [states[0]]
         prev_state = states[0]
@@ -46,14 +47,14 @@ class PathProcessor:
         final_states.append(states[-1])
         return final_states
 
-    def VerifyPath(self, path: list[Node]) -> list[bool]:
+    def VerifyPath(self, path: List[Node]) -> List[bool]:
         for i in range(1, len(path)):
             plan = self.LocalPlanner(path[i-1].state, path[i].state, self.car)
             if not plan.Valid(self.world):
                 return False
         return True
         
-    def PostProcess(self, path: list[Node]) -> list[Node]:
+    def PostProcess(self, path: List[Node]) -> List[Node]:
         # Grab all states, including the intermediate states between arcs.
         # states = UniqueStates(path)
         states = [node.state for node in path]
@@ -64,7 +65,7 @@ class PathProcessor:
         # Rebuild and return the path (list of nodes).
         return [Node(state) for state in states]
 
-    def DrawPath(self, path: list[Node], fig: Visualization, color, check_steps=False, **kwargs):
+    def DrawPath(self, path: List[Node], fig: Visualization, color, check_steps=False, **kwargs):
         # Draw the individual local plans
         for i in range(len(path)-1):
             plan = self.LocalPlanner(path[i].state, path[i+1].state, self.car)

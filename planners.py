@@ -4,6 +4,7 @@ import time
 import bisect
 import random
 from abc import ABC, abstractclassmethod
+from typing import List
 
 import numpy as np
 from sklearn.neighbors import KDTree
@@ -49,7 +50,7 @@ class Node:
 #
 #   A* Planning Algorithm
 #
-def AStar(nodeList: list[Node], start: Node, goal: Node) -> list[Node]:
+def AStar(nodeList: List[Node], start: Node, goal: Node) -> List[Node]:
     # Prepare the still empty *sorted* on-deck queue.
     onDeck = []
 
@@ -185,7 +186,7 @@ class PRMPlanner(Planner):
         print('A* took ', time.time() - start_time)
         return path
 
-    def AddNodesToList(self, nodeList: list[Node], N: int, start: Node, goal: Node):
+    def AddNodesToList(self, nodeList: List[Node], N: int, start: Node, goal: Node):
         xmin, xmax = self.world.xmin, self.world.xmax
         ymin, ymax = self.world.ymin, self.world.ymax
 
@@ -215,7 +216,7 @@ class PRMPlanner(Planner):
     #
     #   Connect the nearest neighbors
     #
-    def ConnectNearestNeighbors(self, nodeList: list[Node], K: int):
+    def ConnectNearestNeighbors(self, nodeList: List[Node], K: int):
         # Clear any existing neighbors.
         for node in nodeList:
             node.childrenandcosts = []
