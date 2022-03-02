@@ -22,6 +22,26 @@ class WorldParams():
             ((xspace       , wroad       ), (xmin         , wroad       )),
             ((xmin         , wroad       ), (xmin         , 0           )))
 
+
+class WorldParamsBig(WorldParams):
+    (wroad)                  = 20                            # Road
+    (xspace, lspace, wspace) = (5, 6, 2.5)                  # Parking Space
+    (xmin, ymin, xmax, ymax) = (0, 0, 40, wroad+wspace)     # Overall boundary
+
+    # Construct the walls.
+    walls = (((xmin         , ymin        ), (xmax         , ymin        )),
+            ((xmax         , ymin        ), (xmax         , wroad       )),
+            ((xmax         , wroad       ), (xspace+lspace, wroad       )),
+            ((xspace+lspace, wroad       ), (xspace+lspace, wroad+wspace)),
+            ((xspace+lspace, wroad+wspace), (xspace       , wroad+wspace)),
+            ((xspace       , wroad+wspace), (xspace       , wroad       )),
+            ((xspace       , wroad       ), (xmin         , wroad       )),
+            ((xmin         , wroad       ), (xmin         , 0           )),
+            ((xmin         , wroad/4     ), (xmax * .75   , wroad/4     )),
+            ((xmin + (xmax - xmin) * .25, wroad/2), (xmax, wroad/2      )),
+            ((xmin         , 3*wroad/4   ), (xmax * .75   , 3*wroad/4   ))
+            )
+
 # Define the car.  Outline and center of rotation.
 class CarParams():
     (lcar, wcar) = (4, 2)           # Length/width
