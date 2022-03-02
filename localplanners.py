@@ -1,5 +1,5 @@
 from abc import ABC, abstractclassmethod
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -166,7 +166,7 @@ class LocalPlan2Arc:
         self.arc2      = arc2
 
     def Compute2ArcConnection(self, fromState: State, toState: State) -> \
-            Tuple[Tuple[State | None, Arc | None, Arc | None], bool]:
+            Tuple[Tuple[Optional[State], Optional[Arc], Optional[Arc]], bool]:
         # Grab the starting and final coordinates.
         (x1, x2) = (fromState.x, toState.x)
         (y1, y2) = (fromState.y, toState.y)
@@ -478,7 +478,7 @@ class LocalPlan4Arc(LocalPlan2Arc):
         self.arc4      = arc4
 
     def ComputeConnection(self, fromState: State, toState: State) -> \
-            Tuple[Tuple[State | None, State | None, State, Arc | None, Arc | None, Arc, Arc], bool]:
+            Tuple[Tuple[Optional[State], Optional[State], State, Optional[Arc], Optional[Arc], Arc, Arc], bool]:
         r = False       # Default to running 2 Arc if close enough
 
         # Too far away, turn towards the target and drive straight for a bit.
