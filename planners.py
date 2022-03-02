@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pathlib import Path
 
 import time
 import bisect
@@ -22,9 +23,12 @@ from params import WorldParams, CarParams
 #   supports the A* search tree.
 #
 class Node:
-    def __init__(self, state: State):
+    def __init__(self, state: State, parentnode: Node=None):
         # Save the state matching this node.
         self.state = state
+
+        # Link to parent for RRT tree structure.
+        self.parent = parentnode
 
         # Edges used for the graph structure (roadmap).
         self.childrenandcosts = []
@@ -242,3 +246,56 @@ class PRMPlanner(Planner):
                         nodeList[n].childrenandcosts.append((nodeList[i], cost))
                         nodeList[n].parents.append(nodeList[i])
                         nodeList[i].parents.append(nodeList[n])
+
+
+class RRTPlanner(Planner):
+
+    def __init__(self, LocalPlanner: type[LocalPlan], world: WorldParams, car: CarParams, Nmax: int, dstep: float):
+        self.LocalPlanner = LocalPlanner
+        self.world = world
+        self.car = car
+        self.Nmax = Nmax
+        self.dstep = dstep
+
+    # Generate sample from uniform distribution
+    def __uniform(self):
+        return State(random.uniform(self.world.xmin, self.world.xmax),
+                     random.uniform(self.world.ymin, self.world.ymax),
+                     random.uniform(-np.pi/4, np.pi/4), self.car)
+    
+    def search(self, startnode: Node, goalnode: Node, visual=False):
+        # Start the tree with the start state and no parent.
+        tree = [startnode]
+
+        # Determine the target state.
+        targetstate = np.random.choice([self.__uniform(), goalnode.state], p=[0.95, 0.05])
+
+        # Find the nearest node (node with state nearest the target state).
+        # This is inefficient (slow for large trees), but simple
+        list = [(node.state.Distance(targetstate), node) for node in tree]
+        (d, nearnode) = min(list)
+        nearstate = nearnode.state
+
+        # Determine the next state, a step size (dstep) away.
+        plan = self.LocalPlanner(nearstate, targetstate, self.car)
+        nextstate = plan.IntermediateState(self.dstep * plan.Length())
+
+        # Check whether to attach (creating a new node).
+        if self.LocalPlanner(nearstate, nextstate, self.car).Valid(self.world):
+            nextnode = Node(nextstate, nearnode)
+            tree.append(nextnode)
+
+            # Also try to connect the goal.
+            if plan.Valid(self.world):
+                goalnode.parent = nextnode
+                tree.append(goalnode)
+
+                # Construct path
+                path  = [goalnode]
+                while path[0].parent is not None:
+                    path.insert(0, path[0].parent)
+                return(path)
+                
+            # Check whether we should abort (tree has gotten too large).
+            if (len(tree) >= self.Nmax):
+                return None

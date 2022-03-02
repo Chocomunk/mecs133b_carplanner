@@ -9,7 +9,7 @@ import numpy as np
 import time
 
 from carstate import State
-from planners import Node, Planner, PRMPlanner
+from planners import Node, Planner, PRMPlanner, RRTPlanner
 from visualization import Visualization
 from pathprocessing import PathProcessor
 from params import WorldParams, CarParams
@@ -28,6 +28,8 @@ from localplanners import LocalPlan, LocalPlan2Arc, LocalPlan3Arc, LocalPlan4Arc
 # K = 50
 N = 200
 K = 40
+Nmax = 1000
+dstep = 0.25
 
 # Flags
 TRIALS = 1                # Only 1 trial is run if SHOW_VISUAL is True
@@ -88,7 +90,8 @@ def main() -> bool:
     c = CarParams()
     wp = WorldParams()
     LocalPlanner: type[LocalPlan] = LocalPlan2Arc
-    planner: Planner = PRMPlanner(LocalPlanner, wp, c, N, K)
+    # planner: Planner = PRMPlanner(LocalPlanner, wp, c, N, K)
+    planner: Planner = RRTPlanner(LocalPlanner, wp, c, Nmax, dstep)
     path_processor = PathProcessor(LocalPlanner, wp, c)
 
     # Test the local planner:
