@@ -4,6 +4,7 @@
 #
 
 import os
+from pickle import FALSE
 import sys
 import numpy as np
 import time
@@ -12,22 +13,14 @@ from carstate import State
 from planners import Node, Planner, PRMPlanner
 from visualization import Visualization
 from pathprocessing import PathProcessor
-from params import WorldParams, CarParams
+from params import WorldParams, WorldParamsBig, CarParams
 from localplanners import LocalPlan, LocalPlan2Arc, LocalPlan3Arc, LocalPlan4Arc
 
 
-# Pick your start and goal locations.
-(startx, starty, startt) = (2.0, 2.0, 0.0)
-(goalx,  goaly,  goalt)  = (
-    WorldParams.xspace + (WorldParams.lspace-CarParams.lcar)/2 + CarParams.lb, 
-    WorldParams.wroad + CarParams.wc, 
-    0.0)
-
 # PRM parameters
-# N = 800
-# K = 50
 N = 200
 K = 40
+
 
 # Flags
 TRIALS = 1                # Only 1 trial is run if SHOW_VISUAL is True
@@ -82,11 +75,11 @@ def main() -> bool:
     # Report the parameters.
     print('Running with ', N, ' nodes and ', K, ' neighbors.')
 
-    # Create the figure.
+    # Create the managers
     if SHOW_VISUAL:
         fig = Visualization()
     c = CarParams()
-    wp = WorldParams()
+    wp = WorldParamsBig()
     LocalPlanner: type[LocalPlan] = LocalPlan2Arc
     planner: Planner = PRMPlanner(LocalPlanner, wp, c, N, K)
     path_processor = PathProcessor(LocalPlanner, wp, c)
@@ -99,6 +92,13 @@ def main() -> bool:
         # Switch to the road figure.
         fig.ClearFigure()
         fig.ShowParkingSpot(wp)
+
+    # Pick your start and goal locations.
+    (startx, starty, startt) = (2.0, 2.0, 0.0)
+    (goalx,  goaly,  goalt)  = (
+        wp.xspace + (wp.lspace-c.lcar)/2 + c.lb, 
+        wp.wroad + c.wc, 
+        0.0)
         
     # Create the start/goal nodes.
     startnode = Node(State(startx, starty, startt, c))
@@ -111,7 +111,7 @@ def main() -> bool:
         fig.ShowFigure()
 
     # Create the list of sample points.
-    path = planner.search(startnode, goalnode, visual=SHOW_VISUAL)
+    path = planner.search(startnode, goalnode, visual=False, fig=fig)
     if not path:
         print("UNABLE TO FIND A PATH")
         return False

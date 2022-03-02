@@ -10,6 +10,7 @@ import numpy as np
 from sklearn.neighbors import KDTree
 
 from carstate import State
+from visualization import Visualization
 from localplanners import LocalPlan
 from params import WorldParams, CarParams
 
@@ -134,7 +135,8 @@ def AStar(nodeList: List[Node], start: Node, goal: Node) -> List[Node]:
 class Planner(ABC):
     
     @abstractclassmethod
-    def search(self, startnode: Node, goalnode: Node, visual=False):
+    def search(self, startnode: Node, goalnode: Node, 
+                visual: bool=False, fig: Visualization=None):
         pass
 
 
@@ -147,13 +149,14 @@ class PRMPlanner(Planner):
         self.N = N
         self.K = K
 
-    def search(self, startnode: Node, goalnode: Node, visual=False):
+    def search(self, startnode: Node, goalnode: Node, 
+                visual: bool=False, fig: Visualization=None):
         start_time = time.time()
         nodeList = []
         self.AddNodesToList(nodeList, self.N, startnode, goalnode)
         print('Sampling took ', time.time() - start_time)
 
-        if visual and False:
+        if visual and fig:
             # # Show the sample states.
             for node in nodeList:
                 node.state.DrawSimple(fig, 'k', linewidth=1)
@@ -170,7 +173,7 @@ class PRMPlanner(Planner):
         self.ConnectNearestNeighbors(nodeList, self.K)
         print('Connecting took ', time.time() - start_time)
 
-        if visual and False:
+        if visual and fig:
             # Show the neighbor connections.
             for node in nodeList:
                 for (child, tripcost) in node.childrenandcosts:
@@ -192,18 +195,26 @@ class PRMPlanner(Planner):
 
         # Add normally distributed samples around the start.
         mu_start = [start.state.x, start.state.y]
-        sig_start = [3, 2]
+        # sig_start = [3, 2]
+        sig_start = [(xmax - xmin) / 3, (ymax - ymin) / 3]
         while (len(nodeList) < N/2):
-            x, y = np.random.normal(mu_start, sig_start)
-            if xmin <= x <= xmax and ymin <= y <= ymax:
-                t = random.uniform(-np.pi/4, np.pi/4)
-                state = State(x,y,t,self.car)
-                if state.InFreeSpace(self.world):
-                    nodeList.append(Node(state))
+            # x, y = np.random.normal(mu_start, sig_start)
+            # if xmin <= x <= xmax and ymin <= y <= ymax:
+            #     t = random.uniform(-np.pi/4, np.pi/4)
+            #     state = State(x,y,t,self.car)
+            #     if state.InFreeSpace(self.world):
+            #         nodeList.append(Node(state))
+            state = State(random.uniform(xmin, xmax),
+                        random.uniform(ymin, ymax),
+                        random.uniform(-np.pi/4, np.pi/4),
+                        self.car)
+            if state.InFreeSpace(self.world):
+                nodeList.append(Node(state))
 
         # Add normally distributed samples around the end.
         mu_goal = [goal.state.x, goal.state.y]
         sig_goal = [3, 2]
+        # sig_goal = [(xmax - xmin) / 10, (ymax - ymin) / 10]
         while (len(nodeList) < N):
             x, y = np.random.normal(mu_goal, sig_goal)
             if xmin <= x <= xmax and ymin <= y <= ymax:
