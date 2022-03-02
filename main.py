@@ -13,7 +13,7 @@ from carstate import State
 from planners import Node, Planner, PRMPlanner, RRTPlanner
 from visualization import Visualization
 from pathprocessing import PathProcessor
-from params import WorldParams, WorldParamsBig, CarParams
+from params import WorldParams, ZigZagWorld, WallWorld, BlockWorld, SmallWorld, CarParams
 from localplanners import LocalPlan, LocalPlan2Arc, LocalPlan3Arc, LocalPlan4Arc
 
 
@@ -81,7 +81,7 @@ def main() -> bool:
     if SHOW_VISUAL:
         fig = Visualization()
     c = CarParams()
-    wp = WorldParamsBig()
+    wp = WallWorld()
     LocalPlanner: type[LocalPlan] = LocalPlan3Arc
     # planner: Planner = PRMPlanner(LocalPlanner, wp, c, N, K)
     planner: Planner = RRTPlanner(LocalPlanner, wp, c, Nmax, dstep)

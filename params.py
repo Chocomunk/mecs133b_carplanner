@@ -47,10 +47,6 @@ class ZigZagWorld(WorldParams):
             )
 
 
-class WorldParamsBig(ZigZagWorld):
-    pass
-
-
 class WallWorld(WorldParams):
     (wroad)                  = 20                            # Road
     (xspace, lspace, wspace) = (5, 6, 2.5)                  # Parking Space
