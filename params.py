@@ -23,7 +23,11 @@ class WorldParams():
             ((xmin         , wroad       ), (xmin         , 0           )))
 
 
-class WorldParamsBig(WorldParams):
+class SmallWorld(WorldParams):
+    pass
+
+
+class ZigZagWorld(WorldParams):
     (wroad)                  = 20                            # Road
     (xspace, lspace, wspace) = (5, 6, 2.5)                  # Parking Space
     (xmin, ymin, xmax, ymax) = (0, 0, 40, wroad+wspace)     # Overall boundary
@@ -41,6 +45,50 @@ class WorldParamsBig(WorldParams):
             ((xmin + (xmax - xmin) * .25, wroad/2), (xmax, wroad/2      )),
             ((xmin         , 3*wroad/4   ), (xmax * .75   , 3*wroad/4   ))
             )
+
+
+class WorldParamsBig(ZigZagWorld):
+    pass
+
+
+class WallWorld(WorldParams):
+    (wroad)                  = 20                            # Road
+    (xspace, lspace, wspace) = (5, 6, 2.5)                  # Parking Space
+    (xmin, ymin, xmax, ymax) = (0, 0, 40, wroad+wspace)     # Overall boundary
+
+    # Construct the walls.
+    walls = (((xmin         , ymin        ), (xmax         , ymin        )),
+            ((xmax         , ymin        ), (xmax         , wroad       )),
+            ((xmax         , wroad       ), (xspace+lspace, wroad       )),
+            ((xspace+lspace, wroad       ), (xspace+lspace, wroad+wspace)),
+            ((xspace+lspace, wroad+wspace), (xspace       , wroad+wspace)),
+            ((xspace       , wroad+wspace), (xspace       , wroad       )),
+            ((xspace       , wroad       ), (xmin         , wroad       )),
+            ((xmin         , wroad       ), (xmin         , 0           )),
+            ((xmin + 5     , ymin + 5    ), (xmax - 5     , ymin + wroad - 5))
+            )
+
+
+class BlockWorld(WorldParams):
+    (wroad)                  = 20                            # Road
+    (xspace, lspace, wspace) = (5, 6, 2.5)                  # Parking Space
+    (xmin, ymin, xmax, ymax) = (0, 0, 40, wroad+wspace)     # Overall boundary
+
+    # Construct the walls.
+    walls = (((xmin         , ymin        ), (xmax         , ymin        )),
+            ((xmax         , ymin        ), (xmax         , wroad       )),
+            ((xmax         , wroad       ), (xspace+lspace, wroad       )),
+            ((xspace+lspace, wroad       ), (xspace+lspace, wroad+wspace)),
+            ((xspace+lspace, wroad+wspace), (xspace       , wroad+wspace)),
+            ((xspace       , wroad+wspace), (xspace       , wroad       )),
+            ((xspace       , wroad       ), (xmin         , wroad       )),
+            ((xmin         , wroad       ), (xmin         , 0           )),
+            ((xmin + 5     , ymin + 5    ), (xmin + 5     , ymin + wroad - 5)),
+            ((xmin + 5     , ymin + 5    ), (xmax - 7     , ymin + 5    )),
+            ((xmax - 7     , ymin + wroad - 5), (xmin + 5 , ymin + wroad - 5)),
+            ((xmax - 7     , ymin + wroad - 5), (xmax - 7 , ymin + 5    ))
+            )
+
 
 # Define the car.  Outline and center of rotation.
 class CarParams():
