@@ -274,39 +274,40 @@ class RRTPlanner(Planner):
                      random.uniform(self.world.ymin, self.world.ymax),
                      random.uniform(-np.pi/4, np.pi/4), self.car)
     
-    def search(self, startnode: Node, goalnode: Node, visual=False, fig=None):
+    def search(self, startnode: Node, goalnode: Node, visual=False, fig: Visualization=None):
         # Start the tree with the start state and no parent.
         tree = [startnode]
 
-        # Determine the target state.
-        targetstate = np.random.choice([self.__uniform(), goalnode.state], p=[0.95, 0.05])
+        while True:
+            # Determine the target state.
+            targetstate = np.random.choice([self.__uniform(), goalnode.state], p=[0.95, 0.05])
 
-        # Find the nearest node (node with state nearest the target state).
-        # This is inefficient (slow for large trees), but simple
-        list = [(node.state.Distance(targetstate), node) for node in tree]
-        (d, nearnode) = min(list)
-        nearstate = nearnode.state
+            # Find the nearest node (node with state nearest the target state).
+            # This is inefficient (slow for large trees), but simple
+            list = [(node.state.Distance(targetstate), node) for node in tree]
+            (d, nearnode) = min(list)
+            nearstate = nearnode.state
 
-        # Determine the next state, a step size (dstep) away.
-        plan = self.LocalPlanner(nearstate, targetstate, self.car)
-        nextstate = plan.IntermediateState(self.dstep * plan.Length())
+            # Determine the next state, a step size (dstep) away.
+            plan = self.LocalPlanner(nearstate, targetstate, self.car)
+            nextstate = plan.IntermediateState(self.dstep * plan.Length())
 
-        # Check whether to attach (creating a new node).
-        if self.LocalPlanner(nearstate, nextstate, self.car).Valid(self.world):
-            nextnode = Node(nextstate, nearnode)
-            tree.append(nextnode)
+            # Check whether to attach (creating a new node).
+            if self.LocalPlanner(nearstate, nextstate, self.car).Valid(self.world):
+                nextnode = Node(nextstate, nearnode)
+                tree.append(nextnode)
 
-            # Also try to connect the goal.
-            if plan.Valid(self.world):
-                goalnode.parent = nextnode
-                tree.append(goalnode)
+                # Also try to connect the goal.
+                if plan.Valid(self.world):
+                    goalnode.parent = nextnode
+                    tree.append(goalnode)
 
-                # Construct path
-                path  = [goalnode]
-                while path[0].parent is not None:
-                    path.insert(0, path[0].parent)
-                return(path)
-                
-            # Check whether we should abort (tree has gotten too large).
-            if (len(tree) >= self.Nmax):
-                return None
+                    # Construct path
+                    path  = [goalnode]
+                    while path[0].parent is not None:
+                        path.insert(0, path[0].parent)
+                    return(path)
+                    
+                # Check whether we should abort (tree has gotten too large).
+                if (len(tree) >= self.Nmax):
+                    return None

@@ -82,9 +82,9 @@ def main() -> bool:
         fig = Visualization()
     c = CarParams()
     wp = WorldParamsBig()
-    LocalPlanner: type[LocalPlan] = LocalPlan2Arc
-    planner: Planner = PRMPlanner(LocalPlanner, wp, c, N, K)
-    # planner: Planner = RRTPlanner(LocalPlanner, wp, c, Nmax, dstep)
+    LocalPlanner: type[LocalPlan] = LocalPlan3Arc
+    # planner: Planner = PRMPlanner(LocalPlanner, wp, c, N, K)
+    planner: Planner = RRTPlanner(LocalPlanner, wp, c, Nmax, dstep)
     path_processor = PathProcessor(LocalPlanner, wp, c)
 
     # Test the local planner:
