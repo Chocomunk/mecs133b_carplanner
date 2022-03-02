@@ -259,6 +259,11 @@ class PRMPlanner(Planner):
                         nodeList[i].parents.append(nodeList[n])
 
 
+######################################################################
+#
+#  RRT Functions
+#
+
 class RRTPlanner(Planner):
 
     def __init__(self, LocalPlanner: type[LocalPlan], world: WorldParams, car: CarParams, Nmax: int, dstep: float):
@@ -290,6 +295,8 @@ class RRTPlanner(Planner):
 
             # Determine the next state, a step size (dstep) away.
             plan = self.LocalPlanner(nearstate, targetstate, self.car)
+            if plan is None:
+                return self.search(startnode, goalnode, visual, fig)
             nextstate = plan.IntermediateState(self.dstep * plan.Length())
 
             # Check whether to attach (creating a new node).
@@ -298,7 +305,7 @@ class RRTPlanner(Planner):
                 tree.append(nextnode)
 
                 # Also try to connect the goal.
-                if plan.Valid(self.world):
+                if self.LocalPlanner(nearstate, goalnode.state, self.car).Valid(self.world):
                     goalnode.parent = nextnode
                     tree.append(goalnode)
 

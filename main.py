@@ -20,8 +20,8 @@ from localplanners import LocalPlan, LocalPlan2Arc, LocalPlan3Arc, LocalPlan4Arc
 # PRM parameters
 N = 200
 K = 40
-Nmax = 1000
-dstep = 0.25
+Nmax = 2000
+dstep = 0.1
 
 
 # Flags

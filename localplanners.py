@@ -275,7 +275,9 @@ class LocalPlan2Arc:
 
     # Return the absolute length.
     def Length(self) -> float:
-        return self.arc1.Length() + self.arc2.Length()
+        d1 = 0 if not self.arc1 else self.arc1.Length()
+        d2 = 0 if not self.arc2 else self.arc2.Length()
+        return d1 + d2
 
     # Draw the local plan (showing the mid state and two arcs).
     def Draw(self, fig: Visualization, color, **kwargs):
@@ -306,7 +308,7 @@ class LocalPlan2Arc:
         if d < d1 + d2:
             d -= d1
             return self.arc2.IntermediateState(d * np.sign(self.arc2.distance), self.car)
-        return self.stopState
+        return self.toState
 
     def CriticalStates(self) -> List[State]:
         if self.midState:
@@ -446,7 +448,7 @@ class LocalPlan3Arc(LocalPlan):
         if d < d1 + d2 + d3:
             d -= d1 + d2
             return self.arc3.IntermediateState(d * np.sign(self.arc3.distance), self.car)
-        return self.stopState
+        return self.toState
 
     def CriticalStates(self) -> List[State]:
         return [self.pointState, self.stopState]
@@ -613,7 +615,7 @@ class LocalPlan4Arc(LocalPlan2Arc):
         if d < d1 + d2 + d3 + d4:
             d -= d1 + d2 + d3
             return self.arc4.IntermediateState(d * np.sign(self.arc4.distance), self.car)
-        return self.stopState
+        return self.toState
 
     def CriticalStates(self) -> List[State]:
         out = []
