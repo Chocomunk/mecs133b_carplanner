@@ -306,7 +306,7 @@ class LocalPlan2Arc:
         if d < d1 + d2:
             d -= d1
             return self.arc2.IntermediateState(d * np.sign(self.arc2.distance), self.car)
-        return self.stopState
+        return self.toState
 
     def CriticalStates(self) -> List[State]:
         if self.midState:
@@ -446,7 +446,7 @@ class LocalPlan3Arc(LocalPlan):
         if d < d1 + d2 + d3:
             d -= d1 + d2
             return self.arc3.IntermediateState(d * np.sign(self.arc3.distance), self.car)
-        return self.stopState
+        return self.toState
 
     def CriticalStates(self) -> List[State]:
         return [self.pointState, self.stopState]
@@ -613,7 +613,7 @@ class LocalPlan4Arc(LocalPlan2Arc):
         if d < d1 + d2 + d3 + d4:
             d -= d1 + d2 + d3
             return self.arc4.IntermediateState(d * np.sign(self.arc4.distance), self.car)
-        return self.stopState
+        return self.toState
 
     def CriticalStates(self) -> List[State]:
         out = []
