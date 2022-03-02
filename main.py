@@ -81,7 +81,7 @@ def main() -> bool:
     if SHOW_VISUAL:
         fig = Visualization()
     c = CarParams()
-    wp = WallWorld()
+    wp = SmallWorld()
     LocalPlanner: type[LocalPlan] = LocalPlan3Arc
     # planner: Planner = PRMPlanner(LocalPlanner, wp, c, N, K)
     planner: Planner = RRTPlanner(LocalPlanner, wp, c, Nmax, dstep)
@@ -114,7 +114,7 @@ def main() -> bool:
         fig.ShowFigure()
 
     # Create the list of sample points.
-    path = planner.search(startnode, goalnode, visual=False, fig=fig)
+    path = planner.search(startnode, goalnode, visual=True, fig=fig)
     if not path:
         print("UNABLE TO FIND A PATH")
         return False

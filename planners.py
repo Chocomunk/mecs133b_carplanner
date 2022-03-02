@@ -9,6 +9,7 @@ from typing import List
 
 import numpy as np
 from sklearn.neighbors import KDTree
+import matplotlib.pyplot as plt
 
 from carstate import State
 from visualization import Visualization
@@ -24,7 +25,7 @@ from params import WorldParams, CarParams
 #   supports the A* search tree.
 #
 class Node:
-    def __init__(self, state: State, parentnode: Node=None):
+    def __init__(self, state: State, parentnode: Node=None, draw: bool=False):
         # Save the state matching this node.
         self.state = state
 
@@ -42,6 +43,18 @@ class Node:
         self.costToReach = 0
         self.costToGoEst = np.inf
         self.cost        = self.costToReach + self.costToGoEst
+
+        # Automatically draw.
+        if draw:
+            self.Draw('r-', linewidth=1)
+
+    # Draw a line to the parent.
+    def Draw(self, *args, **kwargs):
+        if self.parent is not None:
+            plt.plot((self.state.x, self.parent.state.x),
+                     (self.state.y, self.parent.state.y),
+                     *args, **kwargs)
+            plt.pause(0.001)
 
     # Define the "less-than" to enable sorting by cost in A*.
     def __lt__(self, other: Node) -> bool:
@@ -295,17 +308,17 @@ class RRTPlanner(Planner):
 
             # Determine the next state, a step size (dstep) away.
             plan = self.LocalPlanner(nearstate, targetstate, self.car)
-            if plan is None:
-                return self.search(startnode, goalnode, visual, fig)
+            # if plan is None:
+            #     return self.search(startnode, goalnode, visual, fig)
             nextstate = plan.IntermediateState(self.dstep * plan.Length())
 
             # Check whether to attach (creating a new node).
             if self.LocalPlanner(nearstate, nextstate, self.car).Valid(self.world):
-                nextnode = Node(nextstate, nearnode)
+                nextnode = Node(nextstate, nearnode, draw=visual)
                 tree.append(nextnode)
 
                 # Also try to connect the goal.
-                if self.LocalPlanner(nearstate, goalnode.state, self.car).Valid(self.world):
+                if self.LocalPlanner(nextstate, goalnode.state, self.car).Valid(self.world):
                     goalnode.parent = nextnode
                     tree.append(goalnode)
 
