@@ -5,7 +5,7 @@ import time
 import bisect
 import random
 from abc import ABC, abstractclassmethod
-from typing import List
+from typing import Callable, List, Tuple
 
 import numpy as np
 from sklearn.neighbors import KDTree
@@ -277,6 +277,84 @@ class PRMPlanner(Planner):
 #  RRT Functions
 #
 
+class SpatialTable():
+
+    def __init__(self, bin_xsize: float, bin_yize: float, init_factory: Callable,
+                        xmin: float, xmax: float, ymin: float, ymax: float):
+        """
+            bin_xsize and bin_ysize are the dimensions of the individual bins.
+            init_factory is a function that initializes each table entry.
+        """
+        self.xsize = bin_xsize
+        self.ysize = bin_yize
+
+        self.xmin = xmin
+        self.xmax = xmax
+        self.ymin = ymin
+        self.ymax = ymax
+
+        self.width = xmax - xmin
+        self.height = ymax - ymin
+        
+        self.xdim = int(np.ceil(self.width / self.xsize))
+        self.ydim = int(np.ceil(self.height / self.ysize))
+
+        self.table = [[init_factory() for _ in range(self.ydim)] for _ in range(self.xdim)]
+
+    def coord_idx(self, x: float, y: float) -> Tuple[int, int]:
+        return (int((x - self.xmin) // self.xsize), int((y - self.ymin) // self.ysize))
+
+    def iget(self, x_ind: float, y_ind: float) -> int:
+        return self.table[x_ind][y_ind]
+
+    def get(self, x: float, y: float) -> int:
+        x_ind, y_ind = self.coord_idx(x, y)
+        return self.iget(x_ind, y_ind)
+
+    def set(self, x: float, y: float, element: object) -> int:
+        x_ind, y_ind = self.coord_idx(x, y)
+        self.table[x_ind][y_ind] = element
+
+
+def neighbors(x, y, dist, xmax, ymax):
+    if x < 0 or x >= xmax or y < 0 or y >= ymax:
+        return []
+    out = []
+
+    # Left wall
+    x_shift = x - dist
+    if x_shift >= 0:
+        for y_shift in range(y-dist, y+dist+1):
+            if 0 <= y_shift < ymax:
+                out.append((x_shift, y_shift))
+
+    # Right wall
+    x_shift = x + dist
+    if x_shift < xmax:
+        for y_shift in range(y-dist, y+dist+1):
+            if 0 <= y_shift < ymax:
+                out.append((x_shift, y_shift))
+
+    # Top wall
+    y_shift = y - dist
+    if y_shift >= 0:
+        for x_shift in range(x-dist, x+dist+1):
+            if 0 <= x_shift < ymax:
+                out.append((x_shift, y_shift))
+
+    # Bottom wall
+    y_shift = y + dist
+    if y_shift < ymax:
+        for x_shift in range(x-dist, x+dist+1):
+            if 0 <= x_shift < ymax:
+                out.append((x_shift, y_shift))
+
+    # Add current cell to closest dist
+    if dist <= 1:
+        out.append((x,y))
+
+    return out
+
 class RRTPlanner(Planner):
 
     def __init__(self, LocalPlanner: type[LocalPlan], world: WorldParams, car: CarParams, Nmax: int, dstep: float):
@@ -286,41 +364,91 @@ class RRTPlanner(Planner):
         self.Nmax = Nmax
         self.dstep = dstep
 
+        self.node_bins = SpatialTable(5, 5, list,
+                                    self.world.xmin, self.world.xmax, 
+                                    self.world.ymin, self.world.ymax)
+        self.sample_bins = SpatialTable(5, 5, int,
+                                    self.world.xmin, self.world.xmax, 
+                                    self.world.ymin, self.world.ymax)
+
     # Generate sample from uniform distribution
-    def __uniform(self):
-        return State(random.uniform(self.world.xmin, self.world.xmax),
-                     random.uniform(self.world.ymin, self.world.ymax),
-                     random.uniform(-np.pi/4, np.pi/4), self.car)
+    def sample_target(self, goalstate: State) -> State:
+        if random.random() < 0.05:
+            return goalstate
+
+        # Draw 5 samples
+        TARGET_SAMPLES = 5
+        samples = []
+        for _ in range(TARGET_SAMPLES):
+            x = random.uniform(self.world.xmin, self.world.xmax)
+            y = random.uniform(self.world.ymin, self.world.ymax)
+            t = random.uniform(-np.pi/4, np.pi/4)
+            freq = len(self.node_bins.get(x, y)) + self.sample_bins.get(x, y)
+            samples.append((freq, (x, y, t)))
+
+        # Select lowest density sample
+        _, (x, y, t) = min(samples, key=lambda x: x[0])
+
+        # Update sample density
+        for _, (x, y, t) in samples:
+            x_ind, y_ind = self.sample_bins.coord_idx(x, y)
+            self.sample_bins.table[x_ind][y_ind] += 1
+
+        return State(x, y, t, self.car)
+
+    def nearest_node(self, target: State, nodes: List[Node]) -> Node:
+        # This is inefficient (slow for large trees), but simple
+        # list = [(node.state.Distance(target), node) for node in nodes]
+        # _, nearnode = min(list)
+        
+        x, y = self.node_bins.coord_idx(target.x, target.y)
+        xmax, ymax = self.node_bins.xdim, self.node_bins.ydim
+
+        dist = 1
+        nearnode = None
+        min_dist = np.inf
+        while not nearnode:
+            nbrs = neighbors(x, y, dist, xmax, ymax)
+            if not nbrs:
+                return None
+            for x_ind, y_ind in nbrs:
+                for node in self.node_bins.iget(x_ind, y_ind):
+                    dist = node.state.Distance(target)
+                    if dist < min_dist:
+                        min_dist = dist
+                        nearnode = node
+            dist += 1
+        return nearnode
     
     def search(self, startnode: Node, goalnode: Node, visual=False, fig: Visualization=None):
         # Start the tree with the start state and no parent.
         tree = [startnode]
+        self.node_bins.get(startnode.state.x, startnode.state.y).append(startnode)
 
         while True:
             # Determine the target state.
-            targetstate = np.random.choice([self.__uniform(), goalnode.state], p=[0.95, 0.05])
+            # targetstate = np.random.choice([self.__uniform(), goalnode.state], p=[0.95, 0.05])
+            targetstate = self.sample_target(goalnode.state)
 
             # Find the nearest node (node with state nearest the target state).
-            # This is inefficient (slow for large trees), but simple
-            list = [(node.state.Distance(targetstate), node) for node in tree]
-            (d, nearnode) = min(list)
+            nearnode = self.nearest_node(targetstate, tree)
             nearstate = nearnode.state
 
             # Determine the next state, a step size (dstep) away.
             plan = self.LocalPlanner(nearstate, targetstate, self.car)
-            # if plan is None:
-            #     return self.search(startnode, goalnode, visual, fig)
             nextstate = plan.IntermediateState(self.dstep * plan.Length())
 
             # Check whether to attach (creating a new node).
             if self.LocalPlanner(nearstate, nextstate, self.car).Valid(self.world):
                 nextnode = Node(nextstate, nearnode, draw=visual)
                 tree.append(nextnode)
+                self.node_bins.get(nextstate.x, nextstate.y).append(nextnode)
 
                 # Also try to connect the goal.
                 if self.LocalPlanner(nextstate, goalnode.state, self.car).Valid(self.world):
                     goalnode.parent = nextnode
                     tree.append(goalnode)
+                    self.node_bins.get(goalnode.state.x, goalnode.state.y).append(goalnode)
 
                     # Construct path
                     path  = [goalnode]
