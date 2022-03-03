@@ -499,9 +499,6 @@ class LocalPlan4Arc(LocalPlan2Arc):
             # If turning by tansteer is invalid, try turning by -tansteer
             pointState, stopState, arc1, arc2 = self.ComputeStraightDriveConnection(
                 fromState, toState, tp, tansteer, DISTANCE_FROM_GOAL)
-            if not arc1.Valid() or not arc2.Valid():
-                pointState, stopState, arc1, arc2 = self.ComputeStraightDriveConnection(
-                    fromState, toState, tp, -tansteer, DISTANCE_FROM_GOAL)
 
             # 2 Arc (stop -> toState)
             (midState, arc3, arc4), r = self.Compute2ArcConnection(stopState, toState)
