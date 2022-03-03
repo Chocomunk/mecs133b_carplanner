@@ -400,10 +400,11 @@ class RRTPlanner(Planner):
         # This is inefficient (slow for large trees), but simple
         # list = [(node.state.Distance(target), node) for node in nodes]
         # _, nearnode = min(list)
-        
+
         x, y = self.node_bins.coord_idx(target.x, target.y)
         xmax, ymax = self.node_bins.xdim, self.node_bins.ydim
 
+        # Search radially outward in neighboring bins for nearest node.
         dist = 1
         nearnode = None
         min_dist = np.inf
