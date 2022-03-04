@@ -5,7 +5,7 @@ import time
 import bisect
 import random
 from abc import ABC, abstractclassmethod
-from typing import Callable, List, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 from sklearn.neighbors import KDTree
@@ -355,6 +355,7 @@ def neighbors(x, y, dist, xmax, ymax):
 
     return out
 
+TARGET_SAMPLES = 5
 class RRTPlanner(Planner):
 
     def __init__(self, LocalPlanner: type[LocalPlan], world: WorldParams, car: CarParams, Nmax: int, dstep: float):
@@ -364,6 +365,8 @@ class RRTPlanner(Planner):
         self.Nmax = Nmax
         self.dstep = dstep
 
+        # NOTE: Check 'reset()' if params are changed
+        self.node_count = 0
         self.node_bins = SpatialTable(5, 5, list,
                                     self.world.xmin, self.world.xmax, 
                                     self.world.ymin, self.world.ymax)
@@ -377,7 +380,6 @@ class RRTPlanner(Planner):
             return goalstate
 
         # Draw 5 samples
-        TARGET_SAMPLES = 5
         samples = []
         for _ in range(TARGET_SAMPLES):
             x = random.uniform(self.world.xmin, self.world.xmax)
@@ -396,11 +398,8 @@ class RRTPlanner(Planner):
 
         return State(x, y, t, self.car)
 
-    def nearest_node(self, target: State, nodes: List[Node]) -> Node:
+    def nearest_node(self, target: State) -> Node:
         # This is inefficient (slow for large trees), but simple
-        # list = [(node.state.Distance(target), node) for node in nodes]
-        # _, nearnode = min(list)
-
         x, y = self.node_bins.coord_idx(target.x, target.y)
         xmax, ymax = self.node_bins.xdim, self.node_bins.ydim
 
@@ -420,43 +419,70 @@ class RRTPlanner(Planner):
                         nearnode = node
             dist += 1
         return nearnode
+
+    def add_node(self, node: Node, parent: Optional[Node]):
+        node.parent = parent
+        self.node_count += 1
+        self.node_bins.get(node.state.x, node.state.y).append(node)
+
+    def reset(self):
+        del self.node_bins
+        del self.sample_bins
+
+        self.node_count = 0
+        self.node_bins = SpatialTable(5, 5, list,
+                                    self.world.xmin, self.world.xmax, 
+                                    self.world.ymin, self.world.ymax)
+        self.sample_bins = SpatialTable(5, 5, int,
+                                    self.world.xmin, self.world.xmax, 
+                                    self.world.ymin, self.world.ymax)
+
+    def grow(self, goalnode: Node, visual=False):
+        # Determine the target state.
+        targetstate = self.sample_target(goalnode.state)
+
+        # Find the nearest node (node with state nearest the target state).
+        nearnode = self.nearest_node(targetstate)
+        nearstate = nearnode.state
+
+        # Determine the next state, a step size (dstep) away.
+        plan = self.LocalPlanner(nearstate, targetstate, self.car)
+        nextstate = plan.IntermediateState(self.dstep * plan.Length())
+
+        # Check whether to attach (creating a new node).
+        if self.LocalPlanner(nearstate, nextstate, self.car).Valid(self.world):
+            nextnode = Node(nextstate, nearnode, draw=visual)
+            self.add_node(nextnode, nearnode)
+            return nextnode
+        return None
     
     def search(self, startnode: Node, goalnode: Node, visual=False, fig: Visualization=None):
         # Start the tree with the start state and no parent.
-        tree = [startnode]
-        self.node_bins.get(startnode.state.x, startnode.state.y).append(startnode)
+        self.add_node(startnode, None)
 
-        while True:
-            # Determine the target state.
-            # targetstate = np.random.choice([self.__uniform(), goalnode.state], p=[0.95, 0.05])
-            targetstate = self.sample_target(goalnode.state)
+        time_avg = 0
+        while self.node_count < self.Nmax:
+            start_time = time.time()
 
-            # Find the nearest node (node with state nearest the target state).
-            nearnode = self.nearest_node(targetstate, tree)
-            nearstate = nearnode.state
+            nextnode = self.grow(goalnode, visual=visual)
 
-            # Determine the next state, a step size (dstep) away.
-            plan = self.LocalPlanner(nearstate, targetstate, self.car)
-            nextstate = plan.IntermediateState(self.dstep * plan.Length())
+            # Print average single-node growth time.
+            time_avg += time.time() - start_time
+            if self.node_count % 100 == 0:
+                print("{0}/{1} Average growth time: {2:0.5f} s".format(
+                    self.node_count, self.Nmax, time_avg / 100))
+                time_avg = 0
+            
+            # If next node found, also try to connect the goal.
+            if nextnode:
+                goal_plan = self.LocalPlanner(nextnode.state, goalnode.state, self.car)
+                if goal_plan.Valid(self.world):
+                    self.add_node(goalnode, nextnode)
 
-            # Check whether to attach (creating a new node).
-            if self.LocalPlanner(nearstate, nextstate, self.car).Valid(self.world):
-                nextnode = Node(nextstate, nearnode, draw=visual)
-                tree.append(nextnode)
-                self.node_bins.get(nextstate.x, nextstate.y).append(nextnode)
+                    # Construct path and return
+                    path = [goalnode]
+                    while path[-1].parent is not None:
+                        path.append(path[-1].parent)
+                    return reversed(path)
 
-                # Also try to connect the goal.
-                if self.LocalPlanner(nextstate, goalnode.state, self.car).Valid(self.world):
-                    goalnode.parent = nextnode
-                    tree.append(goalnode)
-                    self.node_bins.get(goalnode.state.x, goalnode.state.y).append(goalnode)
-
-                    # Construct path
-                    path  = [goalnode]
-                    while path[0].parent is not None:
-                        path.insert(0, path[0].parent)
-                    return(path)
-                    
-                # Check whether we should abort (tree has gotten too large).
-                if (len(tree) >= self.Nmax):
-                    return None
+        return None
