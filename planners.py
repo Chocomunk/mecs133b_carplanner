@@ -25,7 +25,7 @@ from params import WorldParams, CarParams
 #   supports the A* search tree.
 #
 class Node:
-    def __init__(self, state: State, parentnode: Node=None, draw: bool=False):
+    def __init__(self, state: State, parentnode: Node=None, draw: bool=False, color='r-'):
         # Save the state matching this node.
         self.state = state
 
@@ -46,7 +46,7 @@ class Node:
 
         # Automatically draw.
         if draw:
-            self.Draw('r-', linewidth=1)
+            self.Draw(color, linewidth=1)
 
     # Draw a line to the parent.
     def Draw(self, *args, **kwargs):
@@ -358,12 +358,14 @@ def neighbors(x, y, dist, xmax, ymax):
 TARGET_SAMPLES = 5
 class RRTPlanner(Planner):
 
-    def __init__(self, LocalPlanner: type[LocalPlan], world: WorldParams, car: CarParams, Nmax: int, dstep: float):
+    def __init__(self, LocalPlanner: type[LocalPlan], world: WorldParams, 
+                car: CarParams, Nmax: int, dstep: float, color='r-'):
         self.LocalPlanner = LocalPlanner
         self.world = world
         self.car = car
         self.Nmax = Nmax
         self.dstep = dstep
+        self.color = color
 
         # NOTE: Check 'reset()' if params are changed
         self.node_count = 0
@@ -437,10 +439,7 @@ class RRTPlanner(Planner):
                                     self.world.xmin, self.world.xmax, 
                                     self.world.ymin, self.world.ymax)
 
-    def grow(self, goalnode: Node, visual=False):
-        # Determine the target state.
-        targetstate = self.sample_target(goalnode.state)
-
+    def grow(self, targetstate: State, visual=False) -> Optional[Node]:
         # Find the nearest node (node with state nearest the target state).
         nearnode = self.nearest_node(targetstate)
         nearstate = nearnode.state
@@ -451,7 +450,7 @@ class RRTPlanner(Planner):
 
         # Check whether to attach (creating a new node).
         if self.LocalPlanner(nearstate, nextstate, self.car).Valid(self.world):
-            nextnode = Node(nextstate, nearnode, draw=visual)
+            nextnode = Node(nextstate, nearnode, draw=visual, color=self.color)
             self.add_node(nextnode, nearnode)
             return nextnode
         return None
@@ -464,7 +463,9 @@ class RRTPlanner(Planner):
         while self.node_count < self.Nmax:
             start_time = time.time()
 
-            nextnode = self.grow(goalnode, visual=visual)
+            # Determine the target state.
+            targetstate = self.sample_target(goalnode.state)
+            nextnode = self.grow(targetstate, visual=visual)
 
             # Print average single-node growth time.
             time_avg += time.time() - start_time
@@ -484,5 +485,54 @@ class RRTPlanner(Planner):
                     while path[-1].parent is not None:
                         path.append(path[-1].parent)
                     return reversed(path)
+
+        return None
+
+
+class RRT2TreePlanner(Planner):
+
+    def __init__(self, LocalPlanner: type[LocalPlan], world: WorldParams, car: CarParams, Nmax: int, dstep: float):
+        self.LocalPlanner = LocalPlanner
+        self.world = world
+        self.car = car
+        self.Nmax = Nmax
+        self.dstep = dstep
+
+        self.tree1 = RRTPlanner(LocalPlanner, world, car, Nmax, dstep, color='r-')
+        self.tree2 = RRTPlanner(LocalPlanner, world, car, Nmax, dstep, color='g-')
+
+    def search(self, startnode: Node, goalnode: Node, visual=False, fig: Visualization=None):
+        # Start the tree with the start state and no parent.
+        self.tree1.add_node(startnode, None)
+        self.tree2.add_node(goalnode, None)
+
+        T1 = self.tree1
+        T2 = self.tree2
+
+        node_count = 0
+        while node_count < self.Nmax:
+            # Determine the target state.
+            targetstate = T1.sample_target(goalnode.state)
+            new1 = T1.grow(targetstate, visual=visual)
+            
+            # If next node found, also try to connect the goal.
+            if new1:
+                new2 = T2.grow(new1.state, visual=visual)
+                if new2:
+                    goal_plan = self.LocalPlanner(new1.state, new2.state, self.car)
+                    if goal_plan.Valid(self.world):
+                        # Construct path and return
+                        path = [new1]
+                        while path[-1].parent is not None:
+                            path.append(path[-1].parent)
+                        path = list(reversed(path))
+                        path.append(new2)
+                        while path[-1].parent is not None:
+                            path.append(path[-1].parent)
+
+                        return path
+            
+            # Swap trees
+            T1, T2 = T2, T1
 
         return None

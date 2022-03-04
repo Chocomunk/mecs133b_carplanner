@@ -10,7 +10,7 @@ import numpy as np
 import time
 
 from carstate import State
-from planners import Node, Planner, PRMPlanner, RRTPlanner
+from planners import Node, Planner, PRMPlanner, RRTPlanner, RRT2TreePlanner
 from visualization import Visualization
 from pathprocessing import PathProcessor
 from params import WorldParams, ZigZagWorld, WallWorld, BlockWorld, SmallWorld, CarParams
@@ -81,10 +81,10 @@ def main() -> bool:
     if SHOW_VISUAL:
         fig = Visualization()
     c = CarParams()
-    wp = SmallWorld()
+    wp = WallWorld()
     LocalPlanner: type[LocalPlan] = LocalPlan3Arc
     # planner: Planner = PRMPlanner(LocalPlanner, wp, c, N, K)
-    planner: Planner = RRTPlanner(LocalPlanner, wp, c, Nmax, dstep)
+    planner: Planner = RRT2TreePlanner(LocalPlanner, wp, c, Nmax, dstep)
     path_processor = PathProcessor(LocalPlanner, wp, c)
 
     # Test the local planner:
@@ -163,3 +163,4 @@ if __name__== "__main__":
         success_rate = np.mean(results)
 
         print("Success Rate: {0:.4f}".format(success_rate))
+        print("Took {0} tries".format(len(results)))
