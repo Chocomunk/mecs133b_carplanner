@@ -448,6 +448,11 @@ class RRTPlanner(Planner):
         plan = self.LocalPlanner(nearstate, targetstate, self.car)
         nextstate = plan.IntermediateState(self.dstep * plan.Length())
 
+        # Don't add if another node is already there
+        closest = self.nearest_node(nextstate)
+        if closest and nextstate.Distance(closest.state) < 0.01:
+            return None
+
         # Check whether to attach (creating a new node).
         if self.LocalPlanner(nearstate, nextstate, self.car).Valid(self.world):
             nextnode = Node(nextstate, nearnode, draw=visual, color=self.color)
@@ -532,7 +537,7 @@ class RRT2TreePlanner(Planner):
 
                         return path
             
-            # Swap trees
-            T1, T2 = T2, T1
+                # Swap trees
+                T1, T2 = T2, T1
 
         return None
