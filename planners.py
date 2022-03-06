@@ -180,18 +180,8 @@ class PRMPlanner(Planner):
     def search(self, startnode: Node, goalnode: Node, 
                 visual: bool=False, fig: Visualization=None):
         # Build the graph 
-        self.BuildGraph(startnode, goalnode, visual=visual, fig=fig)
-
-        # Run the A* planner.
         start_time = time.time()
-        path = AStar(self.nodeList, startnode, goalnode)
-        print('A* took ', time.time() - start_time)
-        return path
-
-    def BuildGraph(self, startnode: Node, goalnode: Node, visual: bool=False, 
-                    fig: Visualization=None, uniform: bool=False):
-        start_time = time.time()
-        self.AddNodesToList(self.nodeList, startnode, goalnode, uniform)
+        self.sample_improved(self.nodeList, goalnode)
         print('Sampling took ', time.time() - start_time)
 
         if visual and fig:
@@ -207,7 +197,7 @@ class PRMPlanner(Planner):
 
         # Connect to the nearest neighbors.
         start_time = time.time()
-        self.ConnectNearestNeighbors(self.nodeList)
+        self.ConnectNearestNeighbors()
         print('Connecting took ', time.time() - start_time)
 
         if visual and fig:
@@ -218,86 +208,80 @@ class PRMPlanner(Planner):
                     plan.DrawSimple(fig, 'g-', linewidth=0.5)
             fig.ShowFigure()
 
+        # Run the A* planner.
+        start_time = time.time()
+        path = AStar(self.nodeList, startnode, goalnode)
+        print('A* took ', time.time() - start_time)
+        return path
 
-    def AddNodesToList(self, nodeList: List[Node], start: Node, goal: Node,
-                        uniform: bool=False):
+    def sample_improved(self, goal: Node):
         xmin, xmax = self.world.xmin, self.world.xmax
         ymin, ymax = self.world.ymin, self.world.ymax
         
-        if uniform:
-            # Add uniformly distributed samples.
-            while (len(nodeList) < self.N):
-                state = State(random.uniform(xmin, xmax),
-                            random.uniform(ymin, ymax),
-                            random.uniform(-np.pi/4, np.pi/4),
-                            self.car)
-                if state.InFreeSpace(self.world):
-                    nodeList.append(Node(state))
-        else:
-            # Add uniformly distributed samples.
-            while (len(nodeList) < self.N/2):
-                state = State(random.uniform(xmin, xmax),
-                            random.uniform(ymin, ymax),
-                            random.uniform(-np.pi/4, np.pi/4),
-                            self.car)
-                if state.InFreeSpace(self.world):
-                    nodeList.append(Node(state))
-
-            # Add normally distributed samples around the end.
-            mu_goal = [goal.state.x, goal.state.y]
-            sig_goal = [3, 2]
-            # sig_goal = [(xmax - xmin) / 10, (ymax - ymin) / 10]
-            while (len(nodeList) < self.N):
-                x, y = np.random.normal(mu_goal, sig_goal)
-                if xmin <= x <= xmax and ymin <= y <= ymax:
-                    t = random.uniform(-np.pi/4, np.pi/4)
-                    state = State(x,y,t,self.car)
-                    if state.InFreeSpace(self.world):
-                        nodeList.append(Node(state))
-
-    def AddNodesToListUniform(self, nodeList: List[Node]):
-        xmin, xmax = self.world.xmin, self.world.xmax
-        ymin, ymax = self.world.ymin, self.world.ymax
-
         # Add uniformly distributed samples.
-        while (len(nodeList) < self.N):
+        while (len(self.nodeList) < self.N/2):
             state = State(random.uniform(xmin, xmax),
                         random.uniform(ymin, ymax),
                         random.uniform(-np.pi/4, np.pi/4),
                         self.car)
             if state.InFreeSpace(self.world):
-                nodeList.append(Node(state))
+                self.nodeList.append(Node(state))
+
+        # Add normally distributed samples around the end.
+        mu_goal = [goal.state.x, goal.state.y]
+        sig_goal = [3, 2]
+        # sig_goal = [(xmax - xmin) / 10, (ymax - ymin) / 10]
+        while (len(self.nodeList) < self.N):
+            x, y = np.random.normal(mu_goal, sig_goal)
+            if xmin <= x <= xmax and ymin <= y <= ymax:
+                t = random.uniform(-np.pi/4, np.pi/4)
+                state = State(x,y,t,self.car)
+                if state.InFreeSpace(self.world):
+                    self.nodeList.append(Node(state))
+
+    def sample_uniform(self):
+        xmin, xmax = self.world.xmin, self.world.xmax
+        ymin, ymax = self.world.ymin, self.world.ymax
+
+        # Add uniformly distributed samples.
+        while (len(self.nodeList) < self.N):
+            state = State(random.uniform(xmin, xmax),
+                        random.uniform(ymin, ymax),
+                        random.uniform(-np.pi/4, np.pi/4),
+                        self.car)
+            if state.InFreeSpace(self.world):
+                self.nodeList.append(Node(state))
 
 
     #
     #   Connect the nearest neighbors
     #
-    def ConnectNearestNeighbors(self, nodeList: List[Node]):
+    def ConnectNearestNeighbors(self):
         # Clear any existing neighbors.
-        for node in nodeList:
+        for node in self.nodeList:
             node.childrenandcosts = []
             node.parents          = []
 
         # Determine the indices for the nearest neighbors.  This also
         # reports the node itself as the closest neighbor, so add one
         # extra here and ignore the first element below.
-        X   = np.array([node.state.Coordinates() for node in nodeList])
+        X   = np.array([node.state.Coordinates() for node in self.nodeList])
         kdt = KDTree(X)
         idx = kdt.query(X, k=(self.K+1), return_distance=False)
 
         # Add the edges (from parent to child).  Ignore the first neighbor
         # being itself.
         for i, nbrs in enumerate(idx):
-            children = [child for (child,_) in nodeList[i].childrenandcosts]
+            children = [child for (child,_) in self.nodeList[i].childrenandcosts]
             for n in nbrs[1:]:
-                if not nodeList[n] in children:
-                    plan = self.LocalPlanner(nodeList[i].state, nodeList[n].state, self.car)
+                if not self.nodeList[n] in children:
+                    plan = self.LocalPlanner(self.nodeList[i].state, self.nodeList[n].state, self.car)
                     if plan.Valid(self.world):
                         cost = plan.Length()
-                        nodeList[i].childrenandcosts.append((nodeList[n], cost))
-                        nodeList[n].childrenandcosts.append((nodeList[i], cost))
-                        nodeList[n].parents.append(nodeList[i])
-                        nodeList[i].parents.append(nodeList[n])
+                        self.nodeList[i].childrenandcosts.append((self.nodeList[n], cost))
+                        self.nodeList[n].childrenandcosts.append((self.nodeList[i], cost))
+                        self.nodeList[n].parents.append(self.nodeList[i])
+                        self.nodeList[i].parents.append(self.nodeList[n])
 
 
 ######################################################################
@@ -615,30 +599,26 @@ class PRM2TreePlanner(Planner):
             if plan.Valid(self.world):
                 tree.add_node(prmnode, treenode)
                 prmnode.Draw(tree.color, linewidth=1)
-                self.hook_graph(tree, prmnode, treenode)
+                self.hook_graph(tree, prmnode)
 
-    def hook_graph(self, tree: RRTPlanner, root: Node, tn):
+    def hook_graph(self, tree: RRTPlanner, root: Node):
         q = deque([root])
         while q:
             curr = q.popleft()
             self.prm_samples.get(curr.state.x, curr.state.y).remove(curr)
             for child, _ in curr.childrenandcosts:
                 # If RRT parent has not been claimed and child is available
-                if not child.parent and not child.done:     
+                if not child.parent:     
                     tree.add_node(child, curr)
                     child.Draw(tree.color, linewidth=1)
                     q.append(child)
 
     def search(self, startnode: Node, goalnode: Node, visual=False, fig: Visualization=None):
-        # Generate a preliminary PRM graph
-        self.prm.BuildGraph(startnode, goalnode, False, fig, uniform=True)
+        # Generate a preliminary PRM graph (don't include start/goal)
+        self.prm.sample_uniform()
+        self.prm.ConnectNearestNeighbors()
         for prmnode in self.prm.nodeList:
-            if prmnode != startnode and prmnode != goalnode:
-                self.prm_samples.get(prmnode.state.x, prmnode.state.y).append(prmnode)
-
-        # startnode and goalnode should not be sampled to connect with
-        startnode.done = True
-        goalnode.done = True
+            self.prm_samples.get(prmnode.state.x, prmnode.state.y).append(prmnode)
 
         # Start the tree with the start state and no parent.
         self.tree1.add_node(startnode, None)
@@ -660,10 +640,8 @@ class PRM2TreePlanner(Planner):
                     if goal_plan.Valid(self.world):
                         # Construct path and return
                         path = [new1]
-                        curr = new1
-                        while curr.parent is not None:
-                            path.append(curr.parent)
-                            curr = curr.parent
+                        while path[-1].parent is not None:
+                            path.append(path[-1].parent)
                         path = list(reversed(path))
                         path.append(new2)
                         while path[-1].parent is not None:
