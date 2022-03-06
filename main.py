@@ -81,7 +81,7 @@ def main() -> bool:
     if SHOW_VISUAL:
         fig = Visualization()
     c = CarParams()
-    wp = WallWorld()
+    wp = ZigZagWorld()
     LocalPlanner: type[LocalPlan] = LocalPlan3Arc
     # planner: Planner = PRMPlanner(LocalPlanner, wp, c, N, K)
     # planner: Planner = RRT2TreePlanner(LocalPlanner, wp, c, Nmax, dstep)

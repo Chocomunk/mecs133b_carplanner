@@ -483,8 +483,10 @@ class RRTPlanner(Planner):
 
         # Check whether to attach (creating a new node).
         if self.LocalPlanner(nearstate, nextstate, self.car).Valid(self.world):
-            nextnode = Node(nextstate, nearnode, draw=visual, color=self.color)
+            nextnode = Node(nextstate)
             self.add_node(nextnode, nearnode)
+            if visual:
+                nextnode.Draw(self.color, linewidth=1)
             return nextnode
         return None
     
@@ -606,33 +608,37 @@ class PRM2TreePlanner(Planner):
         self.tree1.reset()
         self.tree2.reset()
 
-    def connect_prm(self, tree: RRTPlanner, node: Node):
-        newnode = nearest_node(node.state, self.prm_samples)
-        if newnode:
-            plan = self.LocalPlanner(node.state, newnode.state, self.car)
+    def connect_prm(self, tree: RRTPlanner, treenode: Node):
+        prmnode = nearest_node(treenode.state, self.prm_samples)
+        if prmnode and not prmnode.parent:
+            plan = self.LocalPlanner(treenode.state, prmnode.state, self.car)
             if plan.Valid(self.world):
-                tree.add_node(newnode, node)
-                newnode.Draw(tree.color, linewidth=1)
-                self.hook_graph(tree, newnode)
+                tree.add_node(prmnode, treenode)
+                prmnode.Draw(tree.color, linewidth=1)
+                self.hook_graph(tree, prmnode, treenode)
 
-    def hook_graph(self, tree: RRTPlanner, root: Node):
+    def hook_graph(self, tree: RRTPlanner, root: Node, tn):
         q = deque([root])
         while q:
             curr = q.popleft()
             self.prm_samples.get(curr.state.x, curr.state.y).remove(curr)
-            for node, _ in curr.childrenandcosts:
-                if not node.parent:     # If RRT parent has not been claimed
-                    tree.add_node(node, curr)
-                    if curr.parent == node:
-                        print(curr.childrenandcosts, node.childrenandcosts)
-                    node.Draw(tree.color, linewidth=1)
-                    q.append(node)
+            for child, _ in curr.childrenandcosts:
+                # If RRT parent has not been claimed and child is available
+                if not child.parent and not child.done:     
+                    tree.add_node(child, curr)
+                    child.Draw(tree.color, linewidth=1)
+                    q.append(child)
 
     def search(self, startnode: Node, goalnode: Node, visual=False, fig: Visualization=None):
         # Generate a preliminary PRM graph
         self.prm.BuildGraph(startnode, goalnode, False, fig, uniform=True)
-        for node in self.prm.nodeList:
-            self.prm_samples.get(node.state.x, node.state.y).append(node)
+        for prmnode in self.prm.nodeList:
+            if prmnode != startnode and prmnode != goalnode:
+                self.prm_samples.get(prmnode.state.x, prmnode.state.y).append(prmnode)
+
+        # startnode and goalnode should not be sampled to connect with
+        startnode.done = True
+        goalnode.done = True
 
         # Start the tree with the start state and no parent.
         self.tree1.add_node(startnode, None)
@@ -656,7 +662,6 @@ class PRM2TreePlanner(Planner):
                         path = [new1]
                         curr = new1
                         while curr.parent is not None:
-                            print(path[-1], path[-1].parent, path[-1].parents, path[-1].childrenandcosts)
                             path.append(curr.parent)
                             curr = curr.parent
                         path = list(reversed(path))
@@ -665,6 +670,8 @@ class PRM2TreePlanner(Planner):
                             path.append(path[-1].parent)
 
                         return path
+
+                # Attempt to connect to PRM graph units
                     self.connect_prm(T2, new2)
                 self.connect_prm(T1, new1)
             
