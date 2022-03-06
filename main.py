@@ -10,7 +10,7 @@ import numpy as np
 import time
 
 from carstate import State
-from planners import Node, Planner, PRMPlanner, RRTPlanner, RRT2TreePlanner
+from planners import Node, Planner, PRMPlanner, RRTPlanner, RRT2TreePlanner, PRM2TreePlanner
 from visualization import Visualization
 from pathprocessing import PathProcessor
 from params import WorldParams, ZigZagWorld, WallWorld, BlockWorld, SmallWorld, CarParams
@@ -84,7 +84,8 @@ def main() -> bool:
     wp = WallWorld()
     LocalPlanner: type[LocalPlan] = LocalPlan3Arc
     # planner: Planner = PRMPlanner(LocalPlanner, wp, c, N, K)
-    planner: Planner = RRT2TreePlanner(LocalPlanner, wp, c, Nmax, dstep)
+    # planner: Planner = RRT2TreePlanner(LocalPlanner, wp, c, Nmax, dstep)
+    planner: Planner = PRM2TreePlanner(LocalPlanner, wp, c, Nmax, dstep, 100, 10)
     path_processor = PathProcessor(LocalPlanner, wp, c)
 
     # Test the local planner:
