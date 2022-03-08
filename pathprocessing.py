@@ -9,6 +9,9 @@ from params import WorldParams, CarParams
 #  Post Process the Path
 #
 class PathProcessor:
+    """ Defines a manager that stores world/driving parameters for use in
+        path processing.
+    """
 
     def __init__(self, LocalPlanner: type[LocalPlan], world: WorldParams, car: CarParams):
         self.LocalPlanner = LocalPlanner

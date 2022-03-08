@@ -1,10 +1,26 @@
 import numpy as np
 
+
 ######################################################################
 #
-#   General/World Definitions
+#   Car Definitions
 #
-#   List of objects, start, goal, and parameters.
+class CarParams():
+    (lcar, wcar) = (4, 2)           # Length/width
+    lb           = 0.5              # Center of rotation to back bumper
+    lf           = lcar - lb        # Center of rotation to front bumper
+    wc           = wcar/2           # Center of rotation to left/right
+    wheelbase    = 3                # Center of rotation to front wheels
+
+    # Max steering angle.
+    steermax    = np.pi/4
+    tansteermax = np.tan(steermax)
+    rmin = wheelbase / tansteermax
+
+
+######################################################################
+#
+#   World Definitions
 #
 
 class WorldParams():
@@ -84,17 +100,3 @@ class BlockWorld(WorldParams):
             ((xmax - 7     , ymin + wroad - 5), (xmin + 5 , ymin + wroad - 5)),
             ((xmax - 7     , ymin + wroad - 5), (xmax - 7 , ymin + 5    ))
             )
-
-
-# Define the car.  Outline and center of rotation.
-class CarParams():
-    (lcar, wcar) = (4, 2)           # Length/width
-    lb           = 0.5              # Center of rotation to back bumper
-    lf           = lcar - lb        # Center of rotation to front bumper
-    wc           = wcar/2           # Center of rotation to left/right
-    wheelbase    = 3                # Center of rotation to front wheels
-
-    # Max steering angle.
-    steermax    = np.pi/4
-    tansteermax = np.tan(steermax)
-    rmin = wheelbase / tansteermax

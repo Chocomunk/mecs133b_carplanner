@@ -4,9 +4,9 @@ from typing import List, Tuple, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 
-from carstate import State, AngleDiff
+from carstate import State
 from params import WorldParams, CarParams
-from planarutils import SegmentCrossArc, SegmentCrossSegment
+from planarutils import SegmentCrossArc, SegmentCrossSegment, AngleDiff
 from visualization import Visualization, DrawParams
 
 
@@ -113,8 +113,7 @@ class Arc:
 
 
 #
-#   Local Plan.  I'm using two arcs, but please feel free to create
-#   whatever local planner you prefer.
+# LocalPlan (Abstract class). The base class for all local planners.
 #
 class LocalPlan(ABC):
 
@@ -150,6 +149,10 @@ class LocalPlan(ABC):
         pass
 
 
+#
+#   2Arc Local Plan.  I'm using two arcs, but please feel free to create
+#   whatever local planner you prefer.
+#
 class LocalPlan2Arc:
     def __init__(self, fromState: State, toState: State, car: CarParams):
         self.car = car
@@ -454,12 +457,12 @@ class LocalPlan3Arc(LocalPlan):
         return [self.pointState, self.stopState]
 
 
-#
-# Local Plan 3-Arc
-#
 MAX_DIST = 10
 DISTANCE_FROM_GOAL = 9      # Must be > than ~8 to capture all cases
 
+#
+# Local Plan 4-Arc
+#
 class LocalPlan4Arc(LocalPlan2Arc):
     def __init__(self, fromState: State, toState: State, car: CarParams):
         self.car = car

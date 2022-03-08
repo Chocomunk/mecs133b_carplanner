@@ -5,17 +5,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from visualization import Visualization
-from planarutils import SegmentCrossBox
+from planarutils import SegmentCrossBox, AngleDiff
 from params import WorldParams, CarParams
 
 ######################################################################
 #
 #   State Definition
 #
-# Angular distance within +/- 180deg.
-# TODO: Find a better place for this function
-def AngleDiff(t1: float, t2: float) -> float:
-    return (t1-t2) - 2.0*np.pi * round(0.5*(t1-t2)/np.pi)
 
 #
 #   State = One set of coordinates

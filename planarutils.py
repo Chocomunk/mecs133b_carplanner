@@ -34,6 +34,11 @@
 import numpy as np
 
 
+# Angular distance within +/- 180deg.
+def AngleDiff(t1: float, t2: float) -> float:
+    return (t1-t2) - 2.0*np.pi * round(0.5*(t1-t2)/np.pi)
+
+
 ######################################################################
 #
 #   RELATIVE TO POINT

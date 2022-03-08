@@ -4,7 +4,6 @@
 #
 
 import os
-from pickle import FALSE
 import sys
 import numpy as np
 import time

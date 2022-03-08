@@ -1,5 +1,4 @@
 from __future__ import annotations
-from pathlib import Path
 
 import time
 import bisect
@@ -19,8 +18,9 @@ from params import WorldParams, CarParams
 
 ######################################################################
 #
-#   A* Functions
+#   Utility Definitions
 #
+
 #
 #   Node class upon which to build the graph (roadmap) and which
 #   supports the A* search tree.
@@ -64,6 +64,52 @@ class Node:
     # Distance to another node, for A*, using the state distance.
     def Distance(self, other: Node) -> float:
         return self.state.Distance(other.state)
+
+
+#
+#   SpatialTable
+#       divides the world into 'bins' which store data that are in the same 
+#       local area.
+#
+class SpatialTable():
+    """ divides the world into 'bins' which store data that are in the same 
+        local area.
+    """
+
+    def __init__(self, bin_xsize: float, bin_yize: float, init_factory: Callable,
+                        xmin: float, xmax: float, ymin: float, ymax: float):
+        """
+            bin_xsize and bin_ysize are the dimensions of the individual bins.
+            init_factory is a function that initializes each table entry.
+        """
+        self.xsize = bin_xsize
+        self.ysize = bin_yize
+
+        self.xmin = xmin
+        self.xmax = xmax
+        self.ymin = ymin
+        self.ymax = ymax
+
+        self.width = xmax - xmin
+        self.height = ymax - ymin
+        
+        self.xdim = int(np.ceil(self.width / self.xsize))
+        self.ydim = int(np.ceil(self.height / self.ysize))
+
+        self.table = [[init_factory() for _ in range(self.ydim)] for _ in range(self.xdim)]
+
+    def coord_idx(self, x: float, y: float) -> Tuple[int, int]:
+        """ Convert a coordinate to a bin index """
+        return (int((x - self.xmin) // self.xsize), int((y - self.ymin) // self.ysize))
+
+    def iget(self, x_ind: float, y_ind: float) -> Any:
+        """ Index from internal table by pure index """
+        return self.table[x_ind][y_ind]
+
+    def get(self, x: float, y: float) -> Any:
+        """ Index from internal table by coordinate """
+        x_ind, y_ind = self.coord_idx(x, y)
+        return self.iget(x_ind, y_ind)
 
 
 #
@@ -142,12 +188,77 @@ def AStar(nodeList: List[Node], start: Node, goal: Node) -> List[Node]:
     return path
 
 
+def neighbors(x, y, dist, xmax, ymax):
+    """ Return a list of valid coordinates that are on a square of radius `dist`
+        from `(x,y)`.
+    """
+    if x < 0 or x >= xmax or y < 0 or y >= ymax:
+        return []
+    out = []
+
+    # Left wall
+    x_shift = x - dist
+    if x_shift >= 0:
+        for y_shift in range(y-dist, y+dist+1):
+            if 0 <= y_shift < ymax:
+                out.append((x_shift, y_shift))
+
+    # Right wall
+    x_shift = x + dist
+    if x_shift < xmax:
+        for y_shift in range(y-dist, y+dist+1):
+            if 0 <= y_shift < ymax:
+                out.append((x_shift, y_shift))
+
+    # Top wall
+    y_shift = y - dist
+    if y_shift >= 0:
+        for x_shift in range(x-dist, x+dist+1):
+            if 0 <= x_shift < ymax:
+                out.append((x_shift, y_shift))
+
+    # Bottom wall
+    y_shift = y + dist
+    if y_shift < ymax:
+        for x_shift in range(x-dist, x+dist+1):
+            if 0 <= x_shift < ymax:
+                out.append((x_shift, y_shift))
+
+    # Add current cell to closest dist
+    if dist <= 1:
+        out.append((x,y))
+
+    return out
+
+def nearest_node(target: State, bins: SpatialTable) -> Node:
+    """ Finds the node in `bins` that is closest to `target` """
+    x, y = bins.coord_idx(target.x, target.y)
+    xmax, ymax = bins.xdim, bins.ydim
+
+    # Search radially outward in neighboring bins for nearest node.
+    dist = 1
+    nearnode = None
+    min_dist = np.inf
+    while not nearnode:
+        nbrs = neighbors(x, y, dist, xmax, ymax)
+        if not nbrs:
+            return None
+        for x_ind, y_ind in nbrs:
+            for node in bins.iget(x_ind, y_ind):
+                dist = node.state.Distance(target)
+                if dist < min_dist:
+                    min_dist = dist
+                    nearnode = node
+        dist += 1
+    return nearnode
+
+
 ######################################################################
 #
-#   PRM Functions
+#   Planner (Abstract Class)
 #
 #
-# Sample the space
+# The base class for all planners.
 #
 
 class Planner(ABC):
@@ -163,6 +274,14 @@ class Planner(ABC):
         """ Returns a path of nodes from `startnode` to `goalnode` """
         pass
 
+
+######################################################################
+#
+#   PRM Planner
+#
+#
+# Sample the space
+#
 
 class PRMPlanner(Planner):
 
@@ -253,11 +372,8 @@ class PRMPlanner(Planner):
             if state.InFreeSpace(self.world):
                 self.nodeList.append(Node(state))
 
-
-    #
-    #   Connect the nearest neighbors
-    #
     def ConnectNearestNeighbors(self):
+        """ Connect nearest neighbor nodes into a graph """
         # Clear any existing neighbors.
         for node in self.nodeList:
             node.childrenandcosts = []
@@ -285,114 +401,14 @@ class PRMPlanner(Planner):
                         self.nodeList[i].parents.append(self.nodeList[n])
 
 
+TARGET_SAMPLES = 5
+
+
 ######################################################################
 #
-#  RRT Functions
+#  RRT Planners (including 2-tree)
 #
 
-class SpatialTable():
-
-    def __init__(self, bin_xsize: float, bin_yize: float, init_factory: Callable,
-                        xmin: float, xmax: float, ymin: float, ymax: float):
-        """
-            bin_xsize and bin_ysize are the dimensions of the individual bins.
-            init_factory is a function that initializes each table entry.
-        """
-        self.xsize = bin_xsize
-        self.ysize = bin_yize
-
-        self.xmin = xmin
-        self.xmax = xmax
-        self.ymin = ymin
-        self.ymax = ymax
-
-        self.width = xmax - xmin
-        self.height = ymax - ymin
-        
-        self.xdim = int(np.ceil(self.width / self.xsize))
-        self.ydim = int(np.ceil(self.height / self.ysize))
-
-        self.table = [[init_factory() for _ in range(self.ydim)] for _ in range(self.xdim)]
-
-    def coord_idx(self, x: float, y: float) -> Tuple[int, int]:
-        """ Convert a coordinate to a bin index """
-        return (int((x - self.xmin) // self.xsize), int((y - self.ymin) // self.ysize))
-
-    def iget(self, x_ind: float, y_ind: float) -> Any:
-        """ Index from internal table by pure index """
-        return self.table[x_ind][y_ind]
-
-    def get(self, x: float, y: float) -> Any:
-        """ Index from internal table by coordinate """
-        x_ind, y_ind = self.coord_idx(x, y)
-        return self.iget(x_ind, y_ind)
-
-
-def neighbors(x, y, dist, xmax, ymax):
-    """ Return a list of valid coordinates that are on a square of radius `dist`
-        from `(x,y)`.
-    """
-    if x < 0 or x >= xmax or y < 0 or y >= ymax:
-        return []
-    out = []
-
-    # Left wall
-    x_shift = x - dist
-    if x_shift >= 0:
-        for y_shift in range(y-dist, y+dist+1):
-            if 0 <= y_shift < ymax:
-                out.append((x_shift, y_shift))
-
-    # Right wall
-    x_shift = x + dist
-    if x_shift < xmax:
-        for y_shift in range(y-dist, y+dist+1):
-            if 0 <= y_shift < ymax:
-                out.append((x_shift, y_shift))
-
-    # Top wall
-    y_shift = y - dist
-    if y_shift >= 0:
-        for x_shift in range(x-dist, x+dist+1):
-            if 0 <= x_shift < ymax:
-                out.append((x_shift, y_shift))
-
-    # Bottom wall
-    y_shift = y + dist
-    if y_shift < ymax:
-        for x_shift in range(x-dist, x+dist+1):
-            if 0 <= x_shift < ymax:
-                out.append((x_shift, y_shift))
-
-    # Add current cell to closest dist
-    if dist <= 1:
-        out.append((x,y))
-
-    return out
-
-def nearest_node(target: State, bins: SpatialTable) -> Node:
-    """ Finds the node in `bins` that is closest to `target` """
-    x, y = bins.coord_idx(target.x, target.y)
-    xmax, ymax = bins.xdim, bins.ydim
-
-    # Search radially outward in neighboring bins for nearest node.
-    dist = 1
-    nearnode = None
-    min_dist = np.inf
-    while not nearnode:
-        nbrs = neighbors(x, y, dist, xmax, ymax)
-        if not nbrs:
-            return None
-        for x_ind, y_ind in nbrs:
-            for node in bins.iget(x_ind, y_ind):
-                dist = node.state.Distance(target)
-                if dist < min_dist:
-                    min_dist = dist
-                    nearnode = node
-        dist += 1
-    return nearnode
-
-TARGET_SAMPLES = 5
 class RRTPlanner(Planner):
 
     def __init__(self, LocalPlanner: type[LocalPlan], world: WorldParams, 
@@ -570,6 +586,14 @@ class RRT2TreePlanner(Planner):
 
         return None
 
+
+######################################################################
+#
+#   Hybrid PRM/2-tree planner
+#
+#
+# Sample a sparse graph that the RRT tree can attach to/jump through.
+#
 
 class PRM2TreePlanner(Planner):
 
