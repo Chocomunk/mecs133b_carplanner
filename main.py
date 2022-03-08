@@ -115,10 +115,12 @@ def main() -> bool:
         fig.ShowFigure()
 
     # Create the list of sample points.
+    start = time.time()
     path = planner.search(startnode, goalnode, visual=True, fig=fig)
     if not path:
         print("UNABLE TO FIND A PATH")
         return False
+    print("Path found in {0:0.4f} s".format(time.time() - start))
 
     if SHOW_VISUAL:
         # Show the path.

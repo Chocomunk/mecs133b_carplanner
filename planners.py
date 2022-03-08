@@ -154,11 +154,13 @@ class Planner(ABC):
 
     @abstractclassmethod
     def reset(self):
+        """ Resets the internal data structures for this planner """
         pass
     
     @abstractclassmethod
     def search(self, startnode: Node, goalnode: Node, 
                 visual: bool=False, fig: Visualization=None):
+        """ Returns a path of nodes from `startnode` to `goalnode` """
         pass
 
 
@@ -181,7 +183,7 @@ class PRMPlanner(Planner):
                 visual: bool=False, fig: Visualization=None):
         # Build the graph 
         start_time = time.time()
-        self.sample_improved(self.nodeList, goalnode)
+        self.sample_improved(goalnode)
         print('Sampling took ', time.time() - start_time)
 
         if visual and fig:
@@ -230,7 +232,6 @@ class PRMPlanner(Planner):
         # Add normally distributed samples around the end.
         mu_goal = [goal.state.x, goal.state.y]
         sig_goal = [3, 2]
-        # sig_goal = [(xmax - xmin) / 10, (ymax - ymin) / 10]
         while (len(self.nodeList) < self.N):
             x, y = np.random.normal(mu_goal, sig_goal)
             if xmin <= x <= xmax and ymin <= y <= ymax:
@@ -314,21 +315,23 @@ class SpatialTable():
         self.table = [[init_factory() for _ in range(self.ydim)] for _ in range(self.xdim)]
 
     def coord_idx(self, x: float, y: float) -> Tuple[int, int]:
+        """ Convert a coordinate to a bin index """
         return (int((x - self.xmin) // self.xsize), int((y - self.ymin) // self.ysize))
 
     def iget(self, x_ind: float, y_ind: float) -> Any:
+        """ Index from internal table by pure index """
         return self.table[x_ind][y_ind]
 
     def get(self, x: float, y: float) -> Any:
+        """ Index from internal table by coordinate """
         x_ind, y_ind = self.coord_idx(x, y)
         return self.iget(x_ind, y_ind)
 
-    def set(self, x: float, y: float, element: object):
-        x_ind, y_ind = self.coord_idx(x, y)
-        self.table[x_ind][y_ind] = element
-
 
 def neighbors(x, y, dist, xmax, ymax):
+    """ Return a list of valid coordinates that are on a square of radius `dist`
+        from `(x,y)`.
+    """
     if x < 0 or x >= xmax or y < 0 or y >= ymax:
         return []
     out = []
@@ -368,7 +371,7 @@ def neighbors(x, y, dist, xmax, ymax):
     return out
 
 def nearest_node(target: State, bins: SpatialTable) -> Node:
-    # This is inefficient (slow for large trees), but simple
+    """ Finds the node in `bins` that is closest to `target` """
     x, y = bins.coord_idx(target.x, target.y)
     xmax, ymax = bins.xdim, bins.ydim
 
@@ -401,7 +404,6 @@ class RRTPlanner(Planner):
         self.dstep = dstep
         self.color = color
 
-        # NOTE: Check 'reset()' if params are changed
         self.node_count = 0
         self.node_bins = SpatialTable(5, 5, list,
                                     self.world.xmin, self.world.xmax, 
@@ -410,8 +412,10 @@ class RRTPlanner(Planner):
                                     self.world.xmin, self.world.xmax, 
                                     self.world.ymin, self.world.ymax)
 
-    # Generate sample from uniform distribution
     def sample_target(self, goalstate: State) -> State:
+        """ Generate a random target. 
+            Uses the spatial tables to favor less-dense areas of the world.
+         """
         if random.random() < 0.05:
             return goalstate
 
@@ -421,8 +425,11 @@ class RRTPlanner(Planner):
             x = random.uniform(self.world.xmin, self.world.xmax)
             y = random.uniform(self.world.ymin, self.world.ymax)
             t = random.uniform(-np.pi/4, np.pi/4)
-            freq = len(self.node_bins.get(x, y)) + self.sample_bins.get(x, y)
-            samples.append((freq, (x, y, t)))
+
+            # Use spatial tables to approximate density around the sample
+            # density = {# nodes added in area} + {# samples taken in area}
+            density = len(self.node_bins.get(x, y)) + self.sample_bins.get(x, y)
+            samples.append((density, (x, y, t)))
 
         # Select lowest density sample
         _, (x, y, t) = min(samples, key=lambda x: x[0])
@@ -435,6 +442,7 @@ class RRTPlanner(Planner):
         return State(x, y, t, self.car)
 
     def add_node(self, node: Node, parent: Optional[Node]):
+        """ Attaches `node` to `parent` in the tree. Updates the density table. """
         node.parent = parent
         self.node_count += 1
         self.node_bins.get(node.state.x, node.state.y).append(node)
@@ -452,6 +460,7 @@ class RRTPlanner(Planner):
                                     self.world.ymin, self.world.ymax)
 
     def grow(self, targetstate: State, visual=False) -> Optional[Node]:
+        """ Attempt to add a new node that grows towards `targetstate` """
         # Find the nearest node (node with state nearest the target state).
         nearnode = nearest_node(targetstate, self.node_bins)
         nearstate = nearnode.state
@@ -539,12 +548,12 @@ class RRT2TreePlanner(Planner):
             targetstate = T1.sample_target(goalnode.state)
             new1 = T1.grow(targetstate, visual=visual)
             
-            # If next node found, also try to connect the goal.
+            # If next node found, also try to connect to T2.
             if new1:
                 new2 = T2.grow(new1.state, visual=visual)
                 if new2:
-                    goal_plan = self.LocalPlanner(new1.state, new2.state, self.car)
-                    if goal_plan.Valid(self.world):
+                    connected = self.LocalPlanner(new1.state, new2.state, self.car)
+                    if connected.Valid(self.world):
                         # Construct path and return
                         path = [new1]
                         while path[-1].parent is not None:
@@ -593,6 +602,7 @@ class PRM2TreePlanner(Planner):
         self.tree2.reset()
 
     def connect_prm(self, tree: RRTPlanner, treenode: Node):
+        """ Search for a PRM graph unit to connect with `tree` """
         prmnode = nearest_node(treenode.state, self.prm_samples)
         if prmnode and not prmnode.parent:
             plan = self.LocalPlanner(treenode.state, prmnode.state, self.car)
@@ -602,6 +612,7 @@ class PRM2TreePlanner(Planner):
                 self.hook_graph(tree, prmnode)
 
     def hook_graph(self, tree: RRTPlanner, root: Node):
+        """ Do a BFS to attach a graph to `tree` from `root` in the graph """
         q = deque([root])
         while q:
             curr = q.popleft()
@@ -632,12 +643,12 @@ class PRM2TreePlanner(Planner):
             targetstate = T1.sample_target(goalnode.state)
             new1 = T1.grow(targetstate, visual=visual)
             
-            # If next node found, also try to connect the goal.
+            # If next node found, also try to connect to T2.
             if new1:
                 new2 = T2.grow(new1.state, visual=visual)
                 if new2:
-                    goal_plan = self.LocalPlanner(new1.state, new2.state, self.car)
-                    if goal_plan.Valid(self.world):
+                    connected = self.LocalPlanner(new1.state, new2.state, self.car)
+                    if connected.Valid(self.world):
                         # Construct path and return
                         path = [new1]
                         while path[-1].parent is not None:
