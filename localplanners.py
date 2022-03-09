@@ -219,7 +219,7 @@ class LocalPlan2Arc:
                 invr2 = u/(v-det)
                 abs1 = abs(invr1)
                 abs2 = abs(invr2)
-                invrmax = 1 / self.car.rmin
+                invrmax = self.car.invrmax
                 if abs1 > invrmax:
                     if abs2 > invrmax:     # Neither is in range
                         return (None, None, None), False

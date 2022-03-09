@@ -16,6 +16,7 @@ class CarParams():
     steermax    = np.pi/4
     tansteermax = np.tan(steermax)
     rmin = wheelbase / tansteermax
+    invrmax = tansteermax / wheelbase
 
 
 ######################################################################
