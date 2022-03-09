@@ -121,31 +121,34 @@ class LocalPlan(ABC):
     def __init__(self, fromState: State, toState: State, car: CarParams):
         pass
 
-    # Return the absolute length.
     @abstractclassmethod
     def Length(self) -> float:
+        """ Return the absolute length. """
         pass
 
-    # Draw the local plan.
     @abstractclassmethod
     def Draw(self, fig: Visualization, color, **kwargs):
+        """ Draw the local plan as a path. """
         pass
 
     @abstractclassmethod
     def DrawSimple(self, fig: Visualization, color, **kwargs):
+        """ Draw the local plan as a line. """
         pass
 
-    # Check whether all intermediate points and arcs are valid
     @abstractclassmethod
     def Valid(self, world: WorldParams) -> bool:
+        """ Check whether all intermediate points and arcs are valid """
         pass
 
     @abstractclassmethod
     def IntermediateState(self, d: float) -> State:
+        """ Return the state that is a distance `d` along the path. """
         pass
 
     @abstractclassmethod
     def CriticalStates(self) -> List[State]:
+        """ Return the endpoints of each path. """
         pass
 
 
