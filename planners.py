@@ -230,7 +230,7 @@ def neighbors(x, y, dist, xmax, ymax):
 
     return out
 
-def nearest_node(target: State, bins: SpatialTable) -> Node:
+def nearest_node(target: State, bins: SpatialTable, dist_lim: int=0) -> Node:
     """ Finds the node in `bins` that is closest to `target` """
     x, y = bins.coord_idx(target.x, target.y)
     xmax, ymax = bins.xdim, bins.ydim
@@ -239,7 +239,7 @@ def nearest_node(target: State, bins: SpatialTable) -> Node:
     dist = 1
     nearnode = None
     min_dist = np.inf
-    while not nearnode:
+    while not nearnode and (dist_lim <= 0 or dist < dist_lim):
         nbrs = neighbors(x, y, dist, xmax, ymax)
         if not nbrs:
             return None
@@ -627,7 +627,7 @@ class PRM2TreePlanner(Planner):
 
     def connect_prm(self, tree: RRTPlanner, treenode: Node):
         """ Search for a PRM graph unit to connect with `tree` """
-        prmnode = nearest_node(treenode.state, self.prm_samples)
+        prmnode = nearest_node(treenode.state, self.prm_samples, dist_lim=2)
         if prmnode and not prmnode.parent:
             plan = self.LocalPlanner(treenode.state, prmnode.state, self.car)
             if plan.Valid(self.world):
@@ -645,7 +645,7 @@ class PRM2TreePlanner(Planner):
                 # If RRT parent has not been claimed and child is available
                 if not child.parent:     
                     tree.add_node(child, curr)
-                    child.Draw(tree.color, linewidth=1)
+                    # child.Draw(tree.color, linewidth=1)
                     q.append(child)
 
     def search(self, startnode: Node, goalnode: Node, visual=False, fig: Visualization=None):
@@ -654,6 +654,15 @@ class PRM2TreePlanner(Planner):
         self.prm.ConnectNearestNeighbors()
         for prmnode in self.prm.nodeList:
             self.prm_samples.get(prmnode.state.x, prmnode.state.y).append(prmnode)
+
+        if visual and fig:
+            # Show the neighbor connections.
+            for node in self.prm.nodeList:
+                node.state.DrawSimple(fig, 'k', linewidth=1)
+                for (child, tripcost) in node.childrenandcosts:
+                    plan = self.LocalPlanner(node.state, child.state, self.car)
+                    plan.DrawSimple(fig, 'g-', linewidth=0.5)
+            fig.ShowFigure()
 
         # Start the tree with the start state and no parent.
         self.tree1.add_node(startnode, None)
